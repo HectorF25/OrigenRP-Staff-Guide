@@ -6,6 +6,7 @@ export const dynamic = 'force-dynamic';
 
 const TARGET = 'https://logs.fivemonitor.com';
 const TARGET_HOST = new URL(TARGET).host;
+const PROXY_PREFIX = '/mis-logs';
 
 const STRIP_RESPONSE_HEADERS = new Set([
   'x-frame-options',
@@ -30,6 +31,49 @@ const STRIP_REQUEST_HEADERS = new Set([
   'content-length'
 ]);
 
+
+function rewriteHtml(html) {
+  html = html.replace(
+    /(\s(?:src|href|action|formaction|poster|data)\s*=\s*["'])\/(?!mis-logs[\/"']|api[\/"']|\/)/gi,
+    `$1${PROXY_PREFIX}/`
+  );
+  html = html.replace(/(\ssrcset\s*=\s*["'])([^"']+)(["'])/gi, (m, pre, val, post) => {
+    const out = val.split(',').map(part => {
+      const trimmed = part.trim();
+      const segs = trimmed.split(/\s+/, 2);
+      let url = segs[0];
+      const sizing = segs[1] || '';
+      if (url.startsWith('/') && !url.startsWith('//') &&
+          !url.startsWith(`${PROXY_PREFIX}/`) && !url.startsWith('/api/')) {
+        url = PROXY_PREFIX + url;
+      }
+      return sizing ? `${url} ${sizing}` : url;
+    }).join(', ');
+    return pre + out + post;
+  });
+  html = html.replace(/https?:\/\/logs\.fivemonitor\.com/gi, PROXY_PREFIX);
+  return html;
+}
+
+function rewriteCss(css) {
+  css = css.replace(
+    /url\(\s*(["']?)\/(?!mis-logs[\/"']|api[\/"']|\/)/gi,
+    `url($1${PROXY_PREFIX}/`
+  );
+  css = css.replace(/https?:\/\/logs\.fivemonitor\.com/gi, PROXY_PREFIX);
+  return css;
+}
+
+
+function rewriteJs(js) {
+  js = js.replace(
+    /(["'`])\/(api|assets|static|img|images|fonts|css|js|public|v1|v2|locales|i18n)\b/g,
+    `$1${PROXY_PREFIX}/$2`
+  );
+  js = js.replace(/https?:\/\/logs\.fivemonitor\.com/gi, PROXY_PREFIX);
+  return js;
+}
+
 async function handle(req, ctx) {
   const session = getSessionFromRequest(req);
   if (!session) {
@@ -51,7 +95,6 @@ async function handle(req, ctx) {
   }
   headers.set('host', TARGET_HOST);
 
-  // Limpiar cookies de nuestro propio panel (session, oauth_state) antes de reenviar
   const cookieHdr = req.headers.get('cookie') || '';
   if (cookieHdr) {
     const cleanCookies = cookieHdr
@@ -82,7 +125,6 @@ async function handle(req, ctx) {
     return new NextResponse(`Proxy error: ${e.message}`, { status: 502 });
   }
 
-  // Headers de respuesta — strippear seguridad e ignorar Set-Cookie/Location (procesados aparte)
   const respHeaders = new Headers();
   upstream.headers.forEach((v, k) => {
     const lk = k.toLowerCase();
@@ -91,13 +133,12 @@ async function handle(req, ctx) {
     respHeaders.append(k, v);
   });
 
-  // Reescribir Location: si apunta a logs.fivemonitor.com, redirigirlo a /api/proxy
   const loc = upstream.headers.get('location');
   if (loc) {
     try {
       const u = new URL(loc, TARGET);
       if (u.host === TARGET_HOST) {
-        respHeaders.set('location', `/api/proxy${u.pathname}${u.search}`);
+        respHeaders.set('location', `${PROXY_PREFIX}${u.pathname}${u.search}`);
       } else {
         respHeaders.set('location', loc);
       }
@@ -106,7 +147,6 @@ async function handle(req, ctx) {
     }
   }
 
-  // Reescribir Set-Cookie: quitar Domain=, forzar Path=/api/proxy y SameSite=None; Secure
   const setCookies = typeof upstream.headers.getSetCookie === 'function'
     ? upstream.headers.getSetCookie()
     : [];
@@ -114,13 +154,30 @@ async function handle(req, ctx) {
     let cleaned = sc.replace(/;\s*Domain=[^;]*/gi, '');
     cleaned = cleaned.replace(/;\s*SameSite=[^;]*/gi, '');
     if (/;\s*Path=/i.test(cleaned)) {
-      cleaned = cleaned.replace(/;\s*Path=[^;]*/gi, '; Path=/api/proxy');
+      cleaned = cleaned.replace(/;\s*Path=[^;]*/gi, `; Path=${PROXY_PREFIX}`);
     } else {
-      cleaned = cleaned + '; Path=/api/proxy';
+      cleaned = cleaned + `; Path=${PROXY_PREFIX}`;
     }
     if (!/;\s*Secure/i.test(cleaned)) cleaned += '; Secure';
     cleaned += '; SameSite=None';
     respHeaders.append('set-cookie', cleaned);
+  }
+
+  const ct = (upstream.headers.get('content-type') || '').toLowerCase();
+  const isHtml = ct.includes('text/html');
+  const isCss  = ct.includes('text/css');
+  const isJs   = ct.includes('javascript') || ct.includes('application/x-javascript');
+
+  if (isHtml || isCss || isJs) {
+    let body = await upstream.text();
+    if (isHtml)      body = rewriteHtml(body);
+    else if (isCss)  body = rewriteCss(body);
+    else if (isJs)   body = rewriteJs(body);
+    return new NextResponse(body, {
+      status: upstream.status,
+      statusText: upstream.statusText,
+      headers: respHeaders
+    });
   }
 
   return new NextResponse(upstream.body, {
