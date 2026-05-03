@@ -1,4 +1,3 @@
-// Normativa de Staff — principios, obligaciones y faltas graves.
 import {
   Shield, Scale, Settings, Calendar, ShieldOff, Target, Mail,
   ShieldCheck, Ban, Clipboard, Clock, AlertTriangle, FileText, Lock, X

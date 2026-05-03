@@ -1,6 +1,5 @@
 'use client';
 
-// Casos Prácticos — situaciones de rol con respuesta interactiva.
 import { useState } from 'react';
 import { CASOS } from '@/lib/data';
 

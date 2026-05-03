@@ -1,6 +1,5 @@
 'use client';
 
-// Consultor IA — analiza una situación contra la normativa completa de OrigenRP.
 import { useState } from 'react';
 import { Sparkles, Send } from 'lucide-react';
 import { QUICK_CHIPS } from '@/lib/sections-data';
@@ -8,7 +7,7 @@ import { QUICK_CHIPS } from '@/lib/sections-data';
 export default function ConsultorIA({ onSessionExpired }) {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState(null); // { vClass, verdict, text }
+  const [result, setResult] = useState(null);
   const [history, setHistory] = useState([]);
 
   async function consultar() {

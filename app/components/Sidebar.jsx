@@ -1,4 +1,3 @@
-// Barra lateral con navegación entre secciones del panel.
 import {
   Sparkles, Terminal, Bot, PackageOpen, Scale, Users, Building2,
   Landmark, Shield, BookOpen, Target, Layers, FileText, Activity

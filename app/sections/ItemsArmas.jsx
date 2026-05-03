@@ -1,6 +1,5 @@
 'use client';
 
-// Items & Armas — referencia de IDs para /giveitem con filtros por categoría.
 import { useState } from 'react';
 import { ITEMS_GROUPS, ITEM_FILTERS } from '@/lib/sections-data';
 import Lucide from '@/app/components/Lucide';

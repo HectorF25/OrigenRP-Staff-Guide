@@ -1,6 +1,5 @@
 'use client';
 
-// Flashcards — repaso rápido de conceptos con volteo.
 import { useState } from 'react';
 import { CONCEPTOS } from '@/lib/data';
 

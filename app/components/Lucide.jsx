@@ -1,4 +1,3 @@
-// Helper para usar iconos lucide-react vía nombre en string (útil cuando vienen de data files).
 import {
   Info, User, FileText, Ban, Lock, PackageOpen, Car, Banknote, Clock, Calendar,
   Users, UserCog, Shield, Ticket, Crosshair, Zap, Utensils, FlaskConical, Box,

@@ -1,4 +1,3 @@
-// Cierra sesión limpiando la cookie y vuelve al panel.
 import { NextResponse } from 'next/server';
 import { clearCookie } from '@/lib/auth';
 

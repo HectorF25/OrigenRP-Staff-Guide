@@ -1,4 +1,3 @@
-// Pantalla de bloqueo previa al login con Discord.
 import { SERVER_ICON } from '@/lib/constants';
 
 export default function AuthGate({ error }) {

@@ -1,6 +1,5 @@
 'use client';
 
-// Normativa Completa — pestañas con la normativa oficial del servidor (alimenta también la IA).
 import { useState } from 'react';
 
 const TABS = [

@@ -1,4 +1,3 @@
-// Tabla comparativa de sanciones para civiles vs miembros de organizaciones (×2).
 import { AlertTriangle } from 'lucide-react';
 import { OC_DOUBLE_TABLE } from '@/lib/sections-data';
 

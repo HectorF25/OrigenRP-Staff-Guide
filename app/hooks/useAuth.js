@@ -3,12 +3,6 @@
 import { useEffect, useState } from 'react';
 import { AUTH_ERRORS } from '@/lib/constants';
 
-/**
- * Gestiona el estado de autenticación del staff.
- * - Llama a /api/auth/me al montar para detectar sesión existente.
- * - Lee ?error= de la URL si venimos de un callback fallido y limpia la URL.
- * - Expone setUser(null) + setGateError() para invalidar la sesión desde fuera (ej. 401 al consultar IA).
- */
 export function useAuth() {
   const [authReady, setAuthReady] = useState(false);
   const [user, setUser] = useState(null);

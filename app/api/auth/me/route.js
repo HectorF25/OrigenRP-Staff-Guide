@@ -1,4 +1,3 @@
-// Devuelve los datos del staff logueado a partir de la cookie de sesión.
 import { NextResponse } from 'next/server';
 import { getSessionFromRequest } from '@/lib/auth';
 

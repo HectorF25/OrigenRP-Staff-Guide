@@ -1,4 +1,3 @@
-// Normativa de Ilegales — mafias, bandas, niveles, precios, zonas, tiroteos.
 import {
   Ban, Crosshair, Banknote, MapPin, Swords, Target,
   AlertTriangle, Zap, Shirt, Package, PhoneOff, X, Check, Clock

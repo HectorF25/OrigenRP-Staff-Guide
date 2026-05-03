@@ -1,6 +1,5 @@
 'use client';
 
-// Logs — embed de FiveMonitor con fallback si bloquea X-Frame.
 import { useEffect, useRef, useState } from 'react';
 import { Info, ExternalLink } from 'lucide-react';
 import { FIVEMONITOR_URL } from '@/lib/constants';
@@ -10,7 +9,6 @@ export default function Logs() {
   const iframeRef = useRef(null);
 
   useEffect(() => {
-    // Heurística cross-origin para detectar X-Frame-Options bloqueando el embed.
     const t = setTimeout(() => {
       try {
         if (iframeRef.current && iframeRef.current.contentWindow == null) {

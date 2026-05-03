@@ -1,4 +1,3 @@
-// Endpoint de diagnóstico — solo dice si las env vars están definidas, NUNCA su valor.
 import { NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';

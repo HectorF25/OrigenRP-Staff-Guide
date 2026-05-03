@@ -1,4 +1,3 @@
-// Callback OAuth2 de Discord: intercambia el code, valida el rol y emite cookie de sesión.
 import { NextResponse } from 'next/server';
 import { sign } from '@/lib/jwt';
 import { parseCookieHeader, sessionCookie, clearCookie } from '@/lib/auth';

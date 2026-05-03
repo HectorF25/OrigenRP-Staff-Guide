@@ -1,6 +1,5 @@
 'use client';
 
-// Conceptos RP — términos clave que todo staff debe dominar. Buscador local + global.
 import { useEffect, useMemo, useState } from 'react';
 import { Search } from 'lucide-react';
 import { CONCEPTOS } from '@/lib/data';
@@ -8,7 +7,6 @@ import { CONCEPTOS } from '@/lib/data';
 export default function Conceptos() {
   const [q, setQ] = useState('');
 
-  // Sincroniza con el buscador global de la topbar (orp-search custom event).
   useEffect(() => {
     function onSearch(e) { setQ(e.detail || ''); }
     window.addEventListener('orp-search', onSearch);

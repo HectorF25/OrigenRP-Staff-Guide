@@ -1,6 +1,5 @@
 'use client';
 
-// Tabla de Sanciones — todas las infracciones con tiempos exactos, filtrables por gravedad.
 import { useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { SANCIONES_FILTERS, SANCIONES_GROUPS } from '@/lib/sections-data';

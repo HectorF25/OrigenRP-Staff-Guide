@@ -1,6 +1,5 @@
 'use client';
 
-// Bot & Tickets — comandos de Discord/bot/Tebex con buscador.
 import { useState } from 'react';
 import { Search, Ticket } from 'lucide-react';
 import { BOT_TICKETS, BOT_GROUPS, TEBEX_CMDS } from '@/lib/sections-data';

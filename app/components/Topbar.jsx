@@ -1,6 +1,5 @@
 'use client';
 
-// Barra superior: título de la sección, theme toggle, búsqueda global, user pill, logout.
 import { useState } from 'react';
 import { Sun, Moon, Search, Menu, LogOut } from 'lucide-react';
 import { PAGES } from '@/lib/data';
@@ -14,7 +13,6 @@ export default function Topbar({ page, user, theme, onToggleTheme, onToggleSideb
     setQ(v);
     if (v.trim()) {
       onJumpConcept();
-      // La sección Conceptos escucha este evento custom para recibir la query global.
       window.dispatchEvent(new CustomEvent('orp-search', { detail: v }));
     }
   }

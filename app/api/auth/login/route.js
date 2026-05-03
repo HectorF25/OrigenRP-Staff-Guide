@@ -1,4 +1,3 @@
-// Inicia el flujo OAuth2 de Discord redirigiendo al usuario a la pantalla de autorización.
 import { NextResponse } from 'next/server';
 import crypto from 'node:crypto';
 import { stateCookie } from '@/lib/auth';

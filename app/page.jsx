@@ -23,22 +23,21 @@ import Flashcards from './sections/Flashcards';
 import NormativaCompleta from './sections/NormativaCompleta';
 import Logs from './sections/Logs';
 
-// Mapa índice → componente. Si en el futuro reordenas el sidebar, ajustar aquí + en Sidebar.jsx.
 const SECTIONS = [
-  ConsultorIA,        // 0
-  Comandos,           // 1
-  BotTickets,         // 2
-  ItemsArmas,         // 3
-  Sanciones,          // 4
-  OcMafias,           // 5
-  Ilegales,           // 6
-  Robos,              // 7
-  NormaStaff,         // 8
-  Conceptos,          // 9
-  Casos,              // 10
-  Flashcards,         // 11
-  NormativaCompleta,  // 12
-  Logs                // 13
+  ConsultorIA,       
+  Comandos,         
+  BotTickets,       
+  ItemsArmas,         
+  Sanciones,         
+  OcMafias,          
+  Ilegales,         
+  Robos,             
+  NormaStaff,        
+  Conceptos,         
+  Casos,              
+  Flashcards,        
+  NormativaCompleta, 
+  Logs               
 ];
 
 export default function Page() {
@@ -66,7 +65,6 @@ export default function Page() {
   if (!user) return <AuthGate error={gateError} />;
 
   const Active = SECTIONS[page] || ConsultorIA;
-  // ConsultorIA es la única sección que reacciona a 401 → expira sesión.
   const sectionProps = Active === ConsultorIA ? { onSessionExpired: expireSession } : {};
 
   return (

@@ -1,4 +1,3 @@
-// Comandos In-Game — referencia rápida del staff.
 import { Info, AlertTriangle } from 'lucide-react';
 import { COMMANDS_INGAME } from '@/lib/sections-data';
 

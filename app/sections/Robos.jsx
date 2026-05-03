@@ -1,4 +1,3 @@
-// Robos & Secuestros — requisitos por establecimiento y robos a personas.
 import { MapPin } from 'lucide-react';
 import { ROBOS_ESTABLECIMIENTOS, ROBOS_PERSONAS } from '@/lib/sections-data';
 import Lucide from '@/app/components/Lucide';

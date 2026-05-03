@@ -8,7 +8,6 @@ export const metadata = {
   }
 };
 
-// Script inline para aplicar el tema antes de que pinte React (evita flash).
 const themeScript = `
 (function() {
   try {

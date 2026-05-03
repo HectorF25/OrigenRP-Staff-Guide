@@ -1,4 +1,3 @@
-// Consultor IA — usa la normativa COMPLETA (general + ilegales + actos ilícitos + sanciones admin).
 import { NextResponse } from 'next/server';
 import { getSessionFromRequest } from '@/lib/auth';
 import { NORMATIVA_FULL } from '@/lib/normativa';
@@ -7,7 +6,6 @@ export const runtime = 'nodejs';
 export const maxDuration = 30;
 
 export async function POST(request) {
-  // Auth: requiere sesión válida (cookie firmada con JWT_SECRET).
   const session = getSessionFromRequest(request);
   if (!session) {
     return NextResponse.json(
