@@ -83,7 +83,7 @@ export default function Logs() {
               <div>
                 <div className="logs-tip-title">¿Cómo pedir acceso?</div>
                 <div className="logs-tip-text">
-                  Solicita tus credenciales a un Admin o Admin+ si aún no tienes
+                  Solicita tus credenciales a un 💻 Director si aún no tienes
                   usuario en FiveMonitor.
                 </div>
               </div>
