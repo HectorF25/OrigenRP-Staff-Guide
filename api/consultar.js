@@ -1,3 +1,5 @@
+import { getSession } from './_lib/auth.js';
+
 const NORMATIVA_CTX = `NORMATIVA COMPLETA ORIGENRP — USO STAFF
 SANCIONES LEVES: DM/VDM/RDM=60min. PG=40min. PG masivo=60min. Evadir rol=40min. Meterse en rol ajeno=40min. Forzar rol=40min. BJ=20min. Robar zona segura=40min. Reportar sin motivo=40min. Omitir pérdida memoria=40min. Forzar rol agresivo=40min. Forzar rol tiroteo=50min. Forzar rol sin motivo a policía=60min. No valorar vida=50min. No tirar /entorno=20min. No respetar entorno=40min. Nula IDP=60min. No rolear choques/heridas=30min. RK=30min. Abuso interacciones=50min. Dejar esposado=30min. Falta fair-play=50min. Burlarse abatido=40min. Mal uso /me /do=5min. Mal uso /oop=30min. Hablar muerto=15min. AFK entorno=40min. Skin default=WARN+CK admin.
 SANCIONES MEDIAS: Cable en rol=120min. Cable en reporte=BAN 2días. Sanciones leves desconectado=BAN 1día/sanción. Pegar en reporte=90min. Salirse rol=60min. Armas OC sin pertenecer=60min. Robar vehículo facción legal=120min.
@@ -28,6 +30,12 @@ export default async function handler(req, res) {
 
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Método no permitido' });
+
+  // Auth: requiere sesión válida (cookie firmada con JWT_SECRET).
+  const session = getSession(req);
+  if (!session) {
+    return res.status(401).json({ error: 'No autenticado. Inicia sesión con Discord.' });
+  }
 
   const { situacion } = req.body || {};
   if (!situacion || !situacion.trim()) {
