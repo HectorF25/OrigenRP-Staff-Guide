@@ -18,7 +18,12 @@ const STRIP_RESPONSE_HEADERS = new Set([
   'connection',
   'keep-alive',
   'content-encoding',
-  'content-length'
+  'content-length',
+  'etag',
+  'last-modified',
+  'cache-control',
+  'pragma',
+  'expires'
 ]);
 
 const STRIP_REQUEST_HEADERS = new Set([
@@ -28,7 +33,9 @@ const STRIP_REQUEST_HEADERS = new Set([
   'connection',
   'keep-alive',
   'transfer-encoding',
-  'content-length'
+  'content-length',
+  'if-none-match',
+  'if-modified-since'
 ]);
 
 
@@ -85,7 +92,6 @@ async function handle(req, ctx) {
   const url = new URL(req.url);
   const targetUrl = `${TARGET}/${pathArr.join('/')}${url.search}`;
 
-  // Headers para upstream
   const headers = new Headers();
   for (const [k, v] of req.headers) {
     const lk = k.toLowerCase();
@@ -132,6 +138,11 @@ async function handle(req, ctx) {
     if (lk === 'set-cookie' || lk === 'location') return;
     respHeaders.append(k, v);
   });
+
+
+  respHeaders.set('cache-control', 'no-store, no-cache, must-revalidate, max-age=0');
+  respHeaders.set('pragma', 'no-cache');
+  respHeaders.set('expires', '0');
 
   const loc = upstream.headers.get('location');
   if (loc) {
