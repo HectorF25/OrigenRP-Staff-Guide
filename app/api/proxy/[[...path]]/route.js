@@ -39,7 +39,15 @@ const STRIP_REQUEST_HEADERS = new Set([
 ]);
 
 
+const FM_PING_SCRIPT = `<script>(function(){window.addEventListener('load',function(){setTimeout(function(){var t=(document.body&&document.body.innerText||'').replace(/\\s/g,'');if(t.length>30){try{window.parent.postMessage('fm-ready','*');}catch(e){}}},800);});})();</script>`;
+
 function rewriteHtml(html) {
+  if (/<\/body>/i.test(html)) {
+    html = html.replace(/<\/body>/i, FM_PING_SCRIPT + '</body>');
+  } else {
+    html = html + FM_PING_SCRIPT;
+  }
+
   html = html.replace(
     /(\s(?:src|href|action|formaction|poster|data)\s*=\s*["'])\/(?!mis-logs[\/"']|api[\/"']|\/)/gi,
     `$1${PROXY_PREFIX}/`

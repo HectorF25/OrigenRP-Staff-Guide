@@ -1,31 +1,33 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { ExternalLink, Info, Shield } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { ExternalLink, Zap, Search, Key, BookOpen } from 'lucide-react';
 import { FIVEMONITOR_URL } from '@/lib/constants';
 
-const PROXY_PATH = '/mis-logs/';
+const PROXY_PATH = '/mis-logs/origen';
+const TIMEOUT_MS = 8000;
 
 export default function Logs() {
-  const [loading, setLoading] = useState(true);
-  const [failed, setFailed] = useState(false);
-  const iframeRef = useRef(null);
+  const [mode, setMode] = useState('loading');
 
   useEffect(() => {
-    const t = setTimeout(() => {
-      if (loading) setFailed(true);
-    }, 12000);
-    return () => clearTimeout(t);
-  }, [loading]);
+    const timer = setTimeout(() => {
+      setMode(prev => (prev === 'loading' ? 'card' : prev));
+    }, TIMEOUT_MS);
 
-  function onLoad() {
-    setLoading(false);
-  }
+    function onMessage(e) {
+      if (e.data === 'fm-ready') {
+        clearTimeout(timer);
+        setMode('iframe');
+      }
+    }
 
-  function onError() {
-    setLoading(false);
-    setFailed(true);
-  }
+    window.addEventListener('message', onMessage);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('message', onMessage);
+    };
+  }, []);
 
   return (
     <div className="section active">
@@ -34,47 +36,99 @@ export default function Logs() {
         <div className="pg-sub">FiveMonitor — historial de acciones, sanciones y eventos</div>
       </div>
 
-      <div className="alert al-c">
-        <span className="al-icon"><Info size={14} /></span>
-        <span>
-          Los logs viven en un servicio externo (FiveMonitor). El panel los embebe a través
-          de un proxy interno. Si algo no carga bien, usa el botón para abrirlos en pestaña aparte.
-        </span>
-      </div>
-
-      <div className="logs-frame-wrap">
-        <div className="logs-bar">
-          <span>logs.fivemonitor.com (vía proxy)</span>
-          <a href={FIVEMONITOR_URL} target="_blank" rel="noreferrer">Abrir externo ↗</a>
-        </div>
-        <iframe
-          ref={iframeRef}
-          className="logs-frame"
-          src={PROXY_PATH}
-          title="FiveMonitor Logs"
-          onLoad={onLoad}
-          onError={onError}
-          referrerPolicy="no-referrer-when-downgrade"
-        />
-        {loading && !failed && (
-          <div className="logs-loading">
-            <div className="spinner" />
-            <p>Cargando FiveMonitor...</p>
+      {mode === 'card' && (
+        <>
+          <div className="logs-card">
+            <div className="logs-card-icon">
+              <Zap size={28} />
+            </div>
+            <div className="logs-card-title">Acceso al Panel de FiveMonitor</div>
+            <div className="logs-card-sub">
+              Por seguridad, FiveMonitor no permite embedirse.<br />
+              Se abre en pestaña aparte.
+            </div>
+            <a
+              className="logs-card-btn"
+              href={FIVEMONITOR_URL}
+              target="_blank"
+              rel="noreferrer"
+            >
+              <ExternalLink size={14} />
+              Abrir FiveMonitor
+            </a>
+            <div className="logs-meta">
+              <span className="logs-meta-dot">●</span>
+              <span>logs.fivemonitor.com/origen</span>
+            </div>
           </div>
-        )}
-        {failed && (
-          <div className="logs-fallback">
-            <Shield size={32} style={{ color: 'var(--red)' }} />
-            <p>
-              FiveMonitor no se pudo cargar dentro del panel. Esto puede pasar si el sitio
-              hace peticiones a URLs absolutas o usa websockets.
-            </p>
-            <a className="logs-open-btn" href={FIVEMONITOR_URL} target="_blank" rel="noreferrer">
-              <ExternalLink size={14} /> Abrir FiveMonitor en pestaña aparte
+
+          <div className="logs-tips">
+            <div className="logs-tip">
+              <div className="logs-tip-icon">
+                <Search size={16} style={{ color: 'var(--red)' }} />
+              </div>
+              <div>
+                <div className="logs-tip-title">¿Qué consultar?</div>
+                <div className="logs-tip-text">
+                  Historial de sanciones, accesos al servidor, eventos de jugadores
+                  y acciones de staff.
+                </div>
+              </div>
+            </div>
+
+            <div className="logs-tip">
+              <div className="logs-tip-icon">
+                <Key size={16} style={{ color: 'var(--red)' }} />
+              </div>
+              <div>
+                <div className="logs-tip-title">¿Cómo pedir acceso?</div>
+                <div className="logs-tip-text">
+                  Solicita tus credenciales a un Admin o Admin+ si aún no tienes
+                  usuario en FiveMonitor.
+                </div>
+              </div>
+            </div>
+
+            <div className="logs-tip">
+              <div className="logs-tip-icon">
+                <BookOpen size={16} style={{ color: 'var(--red)' }} />
+              </div>
+              <div>
+                <div className="logs-tip-title">Manejo responsable</div>
+                <div className="logs-tip-text">
+                  La información de logs es sensible. No compartas capturas
+                  fuera del equipo de staff.
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {mode !== 'card' && (
+        <div className="logs-frame-wrap">
+          <div className="logs-bar">
+            <span>logs.fivemonitor.com (vía proxy)</span>
+            <a href={FIVEMONITOR_URL} target="_blank" rel="noreferrer">
+              Abrir externo ↗
             </a>
           </div>
-        )}
-      </div>
+
+          <iframe
+            className="logs-frame"
+            src={PROXY_PATH}
+            title="FiveMonitor Logs"
+            referrerPolicy="no-referrer-when-downgrade"
+          />
+
+          {mode === 'loading' && (
+            <div className="logs-loading">
+              <div className="spinner" />
+              <p>Intentando embeber FiveMonitor…</p>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
