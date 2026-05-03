@@ -19,8 +19,15 @@ export default async function handler(req, res) {
     .split(',').map(s => s.trim()).filter(Boolean);
   const roleLabel = process.env.DISCORD_ROLE_LABEL || 'Staff';
 
-  if (!clientId || !clientSecret || !redirectUri || !guildId || allowedRoles.length === 0) {
-    return redirect(res, '/?error=server_config');
+  const missing = [];
+  if (!clientId)     missing.push('DISCORD_CLIENT_ID');
+  if (!clientSecret) missing.push('DISCORD_CLIENT_SECRET');
+  if (!redirectUri)  missing.push('DISCORD_REDIRECT_URI');
+  if (!guildId)      missing.push('DISCORD_GUILD_ID');
+  if (allowedRoles.length === 0) missing.push('DISCORD_ALLOWED_ROLES');
+  if (missing.length) {
+    console.error('Env vars faltan:', missing.join(', '));
+    return redirect(res, `/?error=server_config&missing=${encodeURIComponent(missing.join(','))}`);
   }
 
   try {
