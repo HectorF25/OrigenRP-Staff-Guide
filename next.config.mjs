@@ -6,7 +6,6 @@ const nextConfig = {
       { protocol: 'https', hostname: 'cdn.discordapp.com' }
     ]
   },
-  // Alias bonito: /mis-logs/* → /api/proxy/* (proxy real con stripping de X-Frame).
   async rewrites() {
     return [
       { source: '/mis-logs',           destination: '/api/proxy' },

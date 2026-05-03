@@ -4,7 +4,7 @@ import { getSessionFromRequest } from '@/lib/auth';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const TARGET = 'https://logs.fivemonitor.com';
+const TARGET = 'https://logs.fivemonitor.com/origen';
 const TARGET_HOST = new URL(TARGET).host;
 const PROXY_PREFIX = '/mis-logs';
 
@@ -58,7 +58,7 @@ function rewriteHtml(html) {
     }).join(', ');
     return pre + out + post;
   });
-  html = html.replace(/https?:\/\/logs\.fivemonitor\.com/gi, PROXY_PREFIX);
+  html = html.replace(/https?:\/\/logs\.fivemonitor\.com\/origen/gi, PROXY_PREFIX);
   return html;
 }
 
@@ -67,7 +67,7 @@ function rewriteCss(css) {
     /url\(\s*(["']?)\/(?!mis-logs[\/"']|api[\/"']|\/)/gi,
     `url($1${PROXY_PREFIX}/`
   );
-  css = css.replace(/https?:\/\/logs\.fivemonitor\.com/gi, PROXY_PREFIX);
+  css = css.replace(/https?:\/\/logs\.fivemonitor\.com\/origen/gi, PROXY_PREFIX);
   return css;
 }
 
@@ -77,7 +77,7 @@ function rewriteJs(js) {
     /(["'`])\/(api|assets|static|img|images|fonts|css|js|public|v1|v2|locales|i18n)\b/g,
     `$1${PROXY_PREFIX}/$2`
   );
-  js = js.replace(/https?:\/\/logs\.fivemonitor\.com/gi, PROXY_PREFIX);
+  js = js.replace(/https?:\/\/logs\.fivemonitor\.com\/origen/gi, PROXY_PREFIX);
   return js;
 }
 
