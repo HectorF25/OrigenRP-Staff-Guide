@@ -5,6 +5,14 @@ const nextConfig = {
     remotePatterns: [
       { protocol: 'https', hostname: 'cdn.discordapp.com' }
     ]
+  },
+  async rewrites() {
+    return [
+      {
+        source: '/mis-logs/:path*',
+        destination: 'https://logs.fivemonitor.com/:path*',
+      },
+    ];
   }
 };
 
