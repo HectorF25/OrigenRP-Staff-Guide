@@ -9,7 +9,7 @@ export default function AuthGate({ error }) {
           <img src={`${SERVER_ICON}?size=160`} alt="OrigenRP" />
         </div>
         <div>
-          <div className="gate-title">Panel Staff OrigenRP</div>
+          <div className="gate-title">Panel Guia Staff OrigenRP</div>
         </div>
         <div className="gate-status">
           <div className="sb-dot" />
