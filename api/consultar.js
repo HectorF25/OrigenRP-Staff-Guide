@@ -56,6 +56,11 @@ INSTRUCCIONES:
 SITUACIÓN REPORTADA:
 ${situacion.trim()}`;
 
+  const body = JSON.stringify({
+    contents: [{ parts: [{ text: prompt }] }],
+    generationConfig: { maxOutputTokens: 1000, temperature: 0.3 }
+  });
+
   try {
     const geminiRes = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${apiKey}`,
