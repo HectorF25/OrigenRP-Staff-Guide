@@ -6,11 +6,35 @@ Panel de staff para el servidor FiveM OrigenRP con consultor de sanciones IA.
 
 ```
 origenrp/
-├── api/
-│   └── consultar.js     ← Función serverless (la API key vive aquí, privada)
-├── public/
-│   └── index.html       ← Frontend estático
-└── vercel.json          ← Configuración de Vercel
+app/
+├── page.jsx
+├── layout.jsx
+├── globals.css
+├── components/
+│   ├── AuthGate.jsx
+│   ├── Sidebar.jsx
+│   ├── Topbar.jsx
+│   └── Lucide.jsx
+├── hooks/
+│   └── useAuth.js
+└── sections/                
+    ├── ConsultorIA.jsx
+    ├── Comandos.jsx
+    ├── BotTickets.jsx
+    ├── ItemsArmas.jsx
+    ├── Sanciones.jsx
+    ├── OcMafias.jsx
+    ├── Ilegales.jsx
+    ├── Robos.jsx
+    ├── NormaStaff.jsx
+    ├── Conceptos.jsx
+    ├── Casos.jsx
+    ├── Flashcards.jsx
+    ├── NormativaCompleta.jsx
+    └── Logs.jsx
+lib/
+├── constants.js             
+└── ...
 ```
 
 ## Despliegue en Vercel (gratis)
@@ -26,40 +50,7 @@ origenrp/
 
 ---
 
-### 2. Subir el proyecto a GitHub
-
-1. Crea un repo en https://github.com/new (puede ser privado)
-2. Sube la carpeta `origenrp/` completa:
-
-```bash
-cd origenrp
-git init
-git add .
-git commit -m "Initial commit"
-git remote add origin https://github.com/TU_USUARIO/origenrp.git
-git push -u origin main
-```
-
----
-
-### 3. Desplegar en Vercel
-
-1. Ve a https://vercel.com y crea cuenta (gratis con GitHub)
-2. Haz clic en **"Add New Project"**
-3. Importa tu repositorio de GitHub
-4. En la configuración del proyecto:
-   - **Framework Preset**: Other
-   - **Root Directory**: `/` (la raíz del repo)
-5. Haz clic en **"Environment Variables"** y añade:
-   - **Name**: `GOOGLE_API_KEY`
-   - **Value**: `AIzaSy...` (tu key de Gemini)
-6. Haz clic en **"Deploy"**
-
-¡Listo! Vercel te dará una URL como `https://origenrp.vercel.app`
-
----
-
-### 4. Actualizaciones futuras
+### 2. Actualizaciones futuras
 
 Cada vez que hagas `git push` al repo, Vercel redespliegue automáticamente.
 
