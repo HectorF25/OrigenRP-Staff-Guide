@@ -900,3 +900,57 @@ body.gate-shown { overflow: hidden; }
   color: var(--text2);
   line-height: 1.6;
 }
+
+
+/* ── LOGS — IFRAME EMBEBIDO VIA PROXY ─────────── */
+.logs-frame-wrap {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  height: calc(100vh - 220px);
+  min-height: 520px;
+  position: relative;
+  overflow: hidden;
+  display: flex; flex-direction: column;
+}
+.logs-bar {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface2);
+  font-size: 11px; color: var(--text3);
+  font-family: 'JetBrains Mono', monospace;
+  flex-shrink: 0;
+}
+.logs-bar a { color: var(--text2); text-decoration: none; font-weight: 600; font-family: 'Barlow', sans-serif; }
+.logs-bar a:hover { color: var(--red); }
+.logs-frame {
+  flex: 1;
+  width: 100%;
+  border: none;
+  display: block;
+  background: #fff;
+}
+.logs-loading,
+.logs-fallback {
+  position: absolute; inset: 33px 0 0 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: var(--surface);
+  padding: 32px;
+  text-align: center;
+  gap: 14px;
+}
+.logs-loading p,
+.logs-fallback p { color: var(--text2); font-size: 13px; max-width: 480px; line-height: 1.6; margin: 0; }
+.logs-open-btn {
+  background: var(--red);
+  color: #fff;
+  border: none;
+  padding: 10px 22px;
+  font-family: 'Barlow', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex; align-items: center; gap: 8px;
+}
+.logs-open-btn:hover { opacity: 0.9; }
