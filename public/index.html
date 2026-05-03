@@ -54,6 +54,7 @@
 }
 html[data-theme="light"] {
   --bg:      #f0f2f7;
+  --sb-bg:   #fafbfd;
   --surface: #ffffff;
   --surface2:#f5f7fb;
   --border:  #dde2ec;
@@ -124,15 +125,17 @@ svg.lucide { stroke-width: 1.75; }
 }
 .sb-logo-row { display: flex; align-items: center; gap: 10px; }
 .sb-logo {
-  width: 34px; height: 34px;
-  background: var(--red);
+  width: 38px; height: 38px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--surface2);
+  border: 1px solid var(--border);
   display: flex; align-items: center; justify-content: center;
-  font-family: 'Barlow Condensed', sans-serif;
-  font-size: 14px; font-weight: 800; color: #fff;
-  letter-spacing: 1px;
   flex-shrink: 0;
+  box-shadow: var(--sh);
 }
-.sb-title { font-size: 13px; font-weight: 700; color: var(--text); letter-spacing: .2px; }
+.sb-logo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.sb-title { font-size: 13px; font-weight: 700; color: var(--text3); letter-spacing: .2px; }
 .sb-sub { font-size: 10px; color: var(--text3); margin-top: 1px; }
 .sb-status {
   margin-top: 12px;
@@ -713,13 +716,15 @@ body.gate-shown { overflow: hidden; }
   display: flex; flex-direction: column; align-items: center; gap: 18px;
 }
 .gate-logo {
-  width: 56px; height: 56px;
-  background: var(--red);
+  width: 72px; height: 72px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--surface2);
+  border: 1px solid var(--border);
   display: flex; align-items: center; justify-content: center;
-  font-family: 'Barlow Condensed', sans-serif;
-  font-size: 22px; font-weight: 800; color: #fff;
-  letter-spacing: 1.5px;
+  box-shadow: var(--sh-md);
 }
+.gate-logo img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .gate-title {
   font-family: 'Barlow Condensed', sans-serif;
   font-size: 22px; font-weight: 700; color: var(--text);
@@ -810,7 +815,9 @@ body.gate-shown { overflow: hidden; }
 <!-- ── Pantalla de login (Discord OAuth) ─────────── -->
 <div class="gate" id="authGate">
   <div class="gate-card">
-    <div class="gate-logo">OR</div>
+    <div class="gate-logo">
+      <img src="https://cdn.discordapp.com/icons/1009180572624629791/a_e19b1091b6f96da1e60781a281dcd96f.webp?size=160" alt="OrigenRP">
+    </div>
     <div>
       <div class="gate-title">Panel Staff OrigenRP</div>
     </div>
@@ -837,7 +844,9 @@ body.gate-shown { overflow: hidden; }
 <aside class="sidebar" id="sidebar">
   <div class="sb-head">
     <div class="sb-logo-row">
-      <div class="sb-logo">OR</div>
+      <div class="sb-logo">
+        <img src="https://cdn.discordapp.com/icons/1009180572624629791/a_e19b1091b6f96da1e60781a281dcd96f.webp?size=80" alt="OrigenRP">
+      </div>
       <div>
         <div class="sb-title">OrigenRP</div>
         <div class="sb-sub">Panel de Staff</div>
@@ -1711,7 +1720,7 @@ body.gate-shown { overflow: hidden; }
 let aiHistory = [];
 
 (function() {
-  const t = localStorage.getItem('theme') || 'dark';
+  const t = localStorage.getItem('theme') || 'light';
   document.documentElement.dataset.theme = t;
 })();
 
