@@ -3,15 +3,15 @@
 import { useState, useRef } from 'react';
 import { Sparkles, Send, Download, Cpu, AlertTriangle } from 'lucide-react';
 import { QUICK_CHIPS } from '@/lib/sections-data';
-import { NORMATIVA_FULL } from '@/lib/normativa';
+import { NORMATIVA_LOCAL } from '@/lib/normativa';
 
 const WEB_MODEL      = 'Llama-3.2-1B-Instruct-q4f16_1-MLC';
 const WEB_MODEL_SIZE = '670 MB';
 
 const LOCAL_SYSTEM = `Eres un asistente experto en la normativa del servidor de roleplay FiveM "OrigenRP". Ayudas al STAFF a determinar si una situación es sancionable, qué infracción es y la sanción exacta.
 
-NORMATIVA OFICIAL (incluye normas generales, organizaciones criminales, robos y sanciones administrativas):
-${NORMATIVA_FULL}
+NORMATIVA OFICIAL (definiciones, sanciones, reglas OC y prohibiciones clave):
+${NORMATIVA_LOCAL}
 
 INSTRUCCIONES:
 1. Analiza la situación.
