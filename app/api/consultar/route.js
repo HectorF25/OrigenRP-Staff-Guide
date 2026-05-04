@@ -58,6 +58,16 @@ ${situacion.trim()}`;
     if (!geminiRes.ok) {
       const err = await geminiRes.json().catch(() => ({}));
       console.error('Gemini error:', err);
+      const isQuota =
+        geminiRes.status === 429 ||
+        err?.error?.status === 'RESOURCE_EXHAUSTED' ||
+        err?.error?.code === 429;
+      if (isQuota) {
+        return NextResponse.json(
+          { error: 'Cuota diaria de Gemini alcanzada' },
+          { status: 429 }
+        );
+      }
       return NextResponse.json(
         { error: 'Error al contactar con Gemini', detail: err?.error?.message },
         { status: 502 }

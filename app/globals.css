@@ -1149,3 +1149,75 @@ body.gate-shown { overflow: hidden; }
 
   .alert { font-size: 12px; }
 }
+
+.ai-local-badge {
+  display: inline-flex; align-items: center;
+  padding: 1px 7px;
+  background: rgba(37,99,235,.12);
+  border: 1px solid rgba(37,99,235,.25);
+  color: var(--pill-blue);
+  font-size: 9px; font-weight: 700;
+  letter-spacing: 1.5px; text-transform: uppercase;
+  margin-left: 8px;
+}
+
+.ai-wllm-offer {
+  margin-top: 16px;
+  background: rgba(202,138,4,.06);
+  border: 1px solid rgba(202,138,4,.22);
+  border-left: 2px solid var(--yellow);
+  padding: 16px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.ai-wllm-offer-title {
+  display: flex; align-items: center; gap: 7px;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 13px; font-weight: 700;
+  color: var(--al-yellow);
+  text-transform: uppercase; letter-spacing: .5px;
+}
+.ai-wllm-offer-title svg { color: var(--yellow); flex-shrink: 0; }
+.ai-wllm-offer-text {
+  font-size: 12.5px; color: var(--text2); line-height: 1.65;
+}
+.ai-wllm-offer-btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 2px; }
+
+.ai-wllm-progress {
+  margin-top: 16px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  padding: 16px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.ai-wllm-progress-header {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 13px; color: var(--text); font-weight: 600;
+}
+.ai-wllm-pct {
+  margin-left: auto;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px; color: var(--blue); font-weight: 600;
+}
+.ai-wllm-bar {
+  height: 4px; background: var(--border); overflow: hidden;
+}
+.ai-wllm-fill {
+  height: 100%; background: var(--blue);
+  transition: width .3s ease;
+}
+.ai-wllm-msg {
+  font-size: 11px; color: var(--text3);
+  font-family: 'JetBrains Mono', monospace;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+.ai-wllm-ready {
+  margin-top: 10px;
+  display: inline-flex; align-items: center; gap: 7px;
+  background: rgba(37,99,235,.08);
+  border: 1px solid rgba(37,99,235,.2);
+  color: var(--pill-blue);
+  padding: 6px 12px;
+  font-size: 11px; font-family: 'JetBrains Mono', monospace;
+}
+.ai-wllm-ready svg { color: var(--blue); }
