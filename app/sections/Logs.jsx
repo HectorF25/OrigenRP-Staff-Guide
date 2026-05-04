@@ -16,6 +16,7 @@ export default function Logs() {
     }, TIMEOUT_MS);
 
     function onMessage(e) {
+      if (e.origin !== window.location.origin) return;
       if (e.data === 'fm-ready') {
         clearTimeout(timer);
         setMode('iframe');
@@ -119,6 +120,7 @@ export default function Logs() {
             src={PROXY_PATH}
             title="FiveMonitor Logs"
             referrerPolicy="no-referrer-when-downgrade"
+            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
           />
 
           {mode === 'loading' && (
