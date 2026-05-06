@@ -132,18 +132,33 @@ export default function LogsMonitor() {
           ) : selectedChannel ? (
             <LogViewer channel={selectedChannel} />
           ) : (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 320 }}>
-              <div style={{ textAlign: 'center', color: 'var(--text3)' }}>
-                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ marginBottom: 12, opacity: .4 }}>
+           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 'calc(100vh - 200px)' }}>
+            <div className="logs-card" style={{ maxWidth: 560 }}>
+              <div className="logs-card-icon">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
                   <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                   <polyline points="14,2 14,8 20,8" />
                   <line x1="16" y1="13" x2="8" y2="13" />
                   <line x1="16" y1="17" x2="8" y2="17" />
                 </svg>
-                <div style={{ fontSize: 13, marginBottom: 6 }}>Selecciona un canal</div>
-                <div style={{ fontSize: 11 }}>o usa la búsqueda global para buscar en todos</div>
+              </div>
+              <div className="logs-card-title">Selecciona un canal</div>
+              <p className="logs-card-sub">
+                Elige una categoría y un canal en el sidebar para ver sus logs,
+                o usa la búsqueda global para buscar en todos los canales a la vez.
+                {categories.length > 0 && (
+                  <> Tienes <strong>{categories.length} categorías</strong> disponibles.</>
+                )}
+              </p>
+              <div className="logs-meta">
+                <span>logs.fivemonitor.com</span>
+                <span className="logs-meta-dot">·</span>
+                <span>OrigenRP</span>
+                <span className="logs-meta-dot">·</span>
+                <span style={{ color: 'var(--ok-color)' }}>● Conectado</span>
               </div>
             </div>
+          </div>
           )}
         </div>
       </div>
