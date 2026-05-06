@@ -1,24 +1,37 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import { Search } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import LogViewer from '@/app/components/LogViewer';
 import SearchView from '@/app/components/SearchView';
 import { FM_PROJECT_ID } from '@/lib/fivemonitor';
 
-const CATEGORY_COLORS = ['ct-red', 'ct-blue', 'ct-purple', 'ct-green', 'ct-orange', 'ct-cyan', 'ct-yellow'];
+const POLL_INTERVAL = 60_000; // 60s
+const LS_LAST_VISITED = 'fm_lastVisited';
+const LS_LATEST_TS    = 'fm_latestTs';
+
+function loadLS(key) {
+  try { return JSON.parse(localStorage.getItem(key) || '{}'); } catch { return {}; }
+}
+function saveLS(key, val) {
+  try { localStorage.setItem(key, JSON.stringify(val)); } catch {}
+}
 
 export default function LogsMonitor() {
-  const [categories, setCategories]     = useState([]);
-  const [channels, setChannels]         = useState({});
-  const [expanded, setExpanded]         = useState(new Set());
-  const [selectedChannel, setSelected]  = useState(null);
-  const [selectedCategory, setSelCat]   = useState(null);
-  const [search, setSearch]             = useState('');
+  const [categories, setCategories]   = useState([]);
+  const [channels, setChannels]       = useState({});
+  const [expanded, setExpanded]       = useState(new Set());
+  const [selected, setSelected]       = useState(null);
+  const [search, setSearch]           = useState('');
   const [debouncedSearch, setDebounced] = useState('');
-  const [loading, setLoading]           = useState(true);
-  const [error, setError]               = useState(null);
-  const [navOpen, setNavOpen]           = useState(false);
+  const [loadingCats, setLoadingCats] = useState(true);
+  const [catError, setCatError]       = useState(null);
+  const [unread, setUnread]           = useState({});
+  const [lastVisited, setLastVisited] = useState({});
+  const [latestTs, setLatestTs]       = useState({});
+  const [navOpen, setNavOpen]         = useState(false);
+
+  const mountedRef = useRef(true);
+  const channelsRef = useRef({});
 
   useEffect(() => {
     const t = setTimeout(() => setDebounced(search), 500);
@@ -26,98 +39,188 @@ export default function LogsMonitor() {
   }, [search]);
 
   useEffect(() => {
-    fetch(`/api/fm/v1/projects/${FM_PROJECT_ID}/categories`)
-      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-      .then(data => { setCategories(data); setLoading(false); })
-      .catch(e => { setError(e.message); setLoading(false); });
+    setLastVisited(loadLS(LS_LAST_VISITED));
+    setLatestTs(loadLS(LS_LATEST_TS));
+    return () => { mountedRef.current = false; };
   }, []);
 
-  async function loadChannels(cat) {
-    if (channels[cat._id]) return;
-    try {
-      const res = await fetch(`/api/fm/v1/categories/${cat._id}/channels`);
-      if (!res.ok) return;
-      const data = await res.json();
-      setChannels(prev => ({ ...prev, [cat._id]: data }));
-    } catch {}
+  useEffect(() => {
+    let cancelled = false;
+    async function boot() {
+      try {
+        const res = await fetch(`/api/fm/v1/projects/${FM_PROJECT_ID}/categories`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const cats = await res.json();
+        if (cancelled) return;
+        setCategories(cats);
+        setLoadingCats(false);
+
+        const results = await Promise.allSettled(
+          cats.map(cat =>
+            fetch(`/api/fm/v1/categories/${cat._id}/channels`)
+              .then(r => r.ok ? r.json() : [])
+              .then(chs => ({ catId: cat._id, chs }))
+          )
+        );
+        if (cancelled) return;
+        const map = {};
+        for (const r of results) {
+          if (r.status === 'fulfilled') map[r.value.catId] = r.value.chs;
+        }
+        channelsRef.current = map;
+        setChannels(map);
+      } catch (e) {
+        if (!cancelled) { setCatError(e.message); setLoadingCats(false); }
+      }
+    }
+    boot();
+    return () => { cancelled = true; };
+  }, []);
+
+  const pollUnread = useCallback(async () => {
+    const allChannels = Object.values(channelsRef.current).flat();
+    if (!allChannels.length) return;
+    const lv  = loadLS(LS_LAST_VISITED);
+    const lts = loadLS(LS_LATEST_TS);
+    const newLts = { ...lts };
+    const newUnread = {};
+
+    await Promise.allSettled(
+      allChannels.map(async ch => {
+        try {
+          const r = await fetch(`/api/fm/v1/channels/${ch._id}/logs?page=1&limit=1`);
+          if (!r.ok) return;
+          const raw = await r.json();
+          const latest = (Array.isArray(raw) ? raw[0] : raw.logs?.[0]);
+          if (!latest) return;
+          const ts = latest.timestamp ?? latest.createdAt ?? '';
+          newLts[ch._id] = ts;
+          const visitedAt = lv[ch._id] ?? 0;
+          if (ts && new Date(ts).getTime() > visitedAt) {
+            const total = Array.isArray(raw) ? raw.length : (raw.totalCount ?? 0);
+            newUnread[ch._id] = total; // We show "•" not exact count
+          }
+        } catch {}
+      })
+    );
+    if (!mountedRef.current) return;
+    saveLS(LS_LATEST_TS, newLts);
+    setLatestTs(newLts);
+    setUnread(prev => {
+      const merged = { ...newUnread };
+      return merged;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!Object.keys(channels).length) return;
+    pollUnread();
+    const id = setInterval(pollUnread, POLL_INTERVAL);
+    return () => clearInterval(id);
+  }, [channels, pollUnread]);
+
+  function toggleCategory(catId) {
+    setExpanded(prev => {
+      const next = new Set(prev);
+      next.has(catId) ? next.delete(catId) : next.add(catId);
+      return next;
+    });
   }
 
-  function toggleCategory(cat) {
-    const next = new Set(expanded);
-    if (next.has(cat._id)) { next.delete(cat._id); }
-    else { next.add(cat._id); loadChannels(cat); }
-    setExpanded(next);
-  }
-
-  function selectChannel(ch, cat) {
-    setSelected(ch);
-    setSelCat(cat);
+  function selectChannel(channel, category) {
+    const now = Date.now();
+    const newLV = { ...lastVisited, [channel._id]: now };
+    setLastVisited(newLV);
+    saveLS(LS_LAST_VISITED, newLV);
+    setUnread(prev => { const n = { ...prev }; delete n[channel._id]; return n; });
+    setSelected({ channel, category });
     setSearch('');
     setDebounced('');
     setNavOpen(false);
   }
 
-  const isSearchMode = debouncedSearch.trim().length >= 2;
+  const isSearch = debouncedSearch.trim().length >= 2;
   const totalChannels = Object.values(channels).reduce((s, c) => s + c.length, 0);
 
   return (
     <div className="section active fm-section">
-      <div className="pg-header" style={{ display: 'flex', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
+      <div className="pg-header fm-header">
+        <div>
           <div className="pg-title">Logs del Servidor</div>
           <div className="pg-sub">
-            {loading ? 'Conectando con FiveMonitor…' : error ? `Error: ${error}` : `${categories.length} categorías · ${totalChannels} canales`}
+            {loadingCats ? 'Conectando con FiveMonitor…'
+              : catError   ? `Error: ${catError}`
+              : `${categories.length} categorías · ${totalChannels} canales`}
           </div>
         </div>
-        <div style={{ position: 'relative', minWidth: 220 }}>
-          <Search size={13} style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', color: 'var(--text3)', pointerEvents: 'none' }} />
-          <input
-            className="fm-search-input"
-            placeholder="Buscar en todos los canales…"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-          />
+        <div className="fm-header-right">
+          <div className="fm-search-wrap">
+            <svg className="fm-search-icon" width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.75">
+              <circle cx="7" cy="7" r="5" /><line x1="11" y1="11" x2="15" y2="15" />
+            </svg>
+            <input
+              className="fm-search-input"
+              placeholder="Buscar en todos los canales…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+            {search && (
+              <button className="fm-search-clear" onClick={() => { setSearch(''); setDebounced(''); }}>✕</button>
+            )}
+          </div>
+          <button className="fm-nav-toggle btns" onClick={() => setNavOpen(o => !o)}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
+            </svg>
+            Canales
+          </button>
         </div>
-        <button className="fm-nav-toggle btns" onClick={() => setNavOpen(o => !o)} title="Canales">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" /></svg>
-          Canales
-        </button>
       </div>
 
-      <div className={`fm-split${isSearchMode ? ' search-mode' : ''}`}>
-        <div className={`fm-nav${navOpen ? ' open' : ''}${isSearchMode ? ' hidden' : ''}`}>
+      <div className="fm-split">
+        <div className={`fm-nav${navOpen ? ' open' : ''}`}>
           <div className="fm-nav-head">CATEGORÍAS</div>
 
-          {loading && <div style={{ padding: '16px 12px', color: 'var(--text3)', fontSize: 12 }}>Cargando…</div>}
-          {error && <div style={{ padding: '16px 12px', color: 'var(--red)', fontSize: 12 }}>{error}</div>}
+          {loadingCats && <div className="fm-nav-loading">Cargando…</div>}
 
-          {categories.map((cat, i) => {
-            const isExpanded = expanded.has(cat._id);
-            const catChannels = channels[cat._id] ?? [];
+          {categories.map(cat => {
+            const isExp = expanded.has(cat._id);
+            const catChs = channels[cat._id] ?? [];
+            const catUnread = catChs.filter(ch => unread[ch._id]).length;
+
             return (
               <div key={cat._id}>
-                <button className="fm-cat-btn" onClick={() => toggleCategory(cat)}>
-                  <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" style={{ transition: 'transform .15s', transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)', flexShrink: 0 }}>
+                <button className={`fm-cat-btn${catUnread ? ' has-unread' : ''}`} onClick={() => toggleCategory(cat._id)}>
+                  <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.5"
+                    style={{ transition: 'transform .15s', transform: isExp ? 'rotate(90deg)' : 'none', flexShrink: 0 }}>
                     <polyline points="4,2 8,6 4,10" />
                   </svg>
                   <span className="fm-cat-name">{cat.name}</span>
-                  {catChannels.length > 0 && <span className="fm-cat-count">{catChannels.length}</span>}
+                  {catChs.length > 0
+                    ? <span className="fm-cat-count">{catChs.length}</span>
+                    : loadingCats ? null : <span className="fm-cat-count" style={{ opacity: .4 }}>—</span>
+                  }
+                  {catUnread > 0 && <span className="fm-cat-unread-dot" />}
                 </button>
 
-                {isExpanded && (
+                {isExp && (
                   <div className="fm-channels">
-                    {catChannels.length === 0
-                      ? <div style={{ padding: '4px 10px 4px 24px', color: 'var(--text3)', fontSize: 11 }}>Cargando…</div>
-                      : catChannels.map(ch => (
-                          <button
-                            key={ch._id}
-                            className={`fm-ch-btn${selectedChannel?._id === ch._id ? ' active' : ''}`}
-                            onClick={() => selectChannel(ch, cat)}
-                          >
-                            <span className="fm-ch-hash">#</span>
-                            <span className="fm-ch-name">{ch.name}</span>
-                          </button>
-                        ))
+                    {catChs.length === 0
+                      ? <div className="fm-ch-empty">—</div>
+                      : catChs.map(ch => {
+                          const isActive  = selected?.channel._id === ch._id && !isSearch;
+                          const hasUnread = !!unread[ch._id];
+                          return (
+                            <button key={ch._id}
+                              className={`fm-ch-btn${isActive ? ' active' : ''}${hasUnread ? ' unread' : ''}`}
+                              onClick={() => selectChannel(ch, cat)}
+                            >
+                              <span className="fm-ch-hash">#</span>
+                              <span className="fm-ch-name">{ch.name}</span>
+                              {hasUnread && <span className="fm-ch-unread-dot" />}
+                            </button>
+                          );
+                        })
                     }
                   </div>
                 )}
@@ -126,39 +229,27 @@ export default function LogsMonitor() {
           })}
         </div>
 
-        <div className={`fm-content${isSearchMode ? ' fullwidth' : ''}`}>
-          {isSearchMode ? (
+        <div className="fm-content">
+          {isSearch ? (
             <SearchView query={debouncedSearch} />
-          ) : selectedChannel ? (
-            <LogViewer channel={selectedChannel} />
+          ) : selected ? (
+            <LogViewer
+              key={selected.channel._id}
+              channel={selected.channel}
+              category={selected.category}
+              lastVisited={lastVisited[selected.channel._id]}
+            />
           ) : (
-           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 'calc(100vh - 200px)' }}>
-            <div className="logs-card" style={{ maxWidth: 560 }}>
-              <div className="logs-card-icon">
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                  <polyline points="14,2 14,8 20,8" />
-                  <line x1="16" y1="13" x2="8" y2="13" />
-                  <line x1="16" y1="17" x2="8" y2="17" />
-                </svg>
-              </div>
-              <div className="logs-card-title">Selecciona un canal</div>
-              <p className="logs-card-sub">
-                Elige una categoría y un canal en el sidebar para ver sus logs,
-                o usa la búsqueda global para buscar en todos los canales a la vez.
-                {categories.length > 0 && (
-                  <> Tienes <strong>{categories.length} categorías</strong> disponibles.</>
-                )}
-              </p>
-              <div className="logs-meta">
-                <span>logs.fivemonitor.com</span>
-                <span className="logs-meta-dot">·</span>
-                <span>OrigenRP</span>
-                <span className="logs-meta-dot">·</span>
-                <span style={{ color: 'var(--ok-color)' }}>● Conectado</span>
-              </div>
+            <div className="fm-empty-state">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.25">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14,2 14,8 20,8" />
+                <line x1="16" y1="13" x2="8" y2="13" />
+                <line x1="16" y1="17" x2="8" y2="17" />
+              </svg>
+              <p>Selecciona un canal en el panel izquierdo</p>
+              <span>o usa la búsqueda para buscar en todos los canales a la vez</span>
             </div>
-          </div>
           )}
         </div>
       </div>

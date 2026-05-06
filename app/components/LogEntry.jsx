@@ -98,7 +98,7 @@ export function StatCard({ label, value, color }) {
 }
 
 
-export default function LogEntry({ log, showChannel = false, defaultExpanded = false }) {
+export default function LogEntry({ log, showChannel = false, defaultExpanded = false, isNew = false }) {
   const [expanded, setExpanded] = useState(defaultExpanded);
 
   const embed      = log.metadata?.embeds?.[0];
@@ -110,7 +110,7 @@ export default function LogEntry({ log, showChannel = false, defaultExpanded = f
   const hasExpandable = embed && (embed.fields?.length ?? 0) > 0;
 
   return (
-    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderLeft: `3px solid ${lvlBdr}`, marginBottom: 10, transition: 'border-color .14s' }}>
+    <div className={isNew ? 'fm-log-new' : undefined} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderLeft: `3px solid ${lvlBdr}`, marginBottom: 10, transition: 'border-color .14s' }}>
       <div
         style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderBottom: expanded || hasExpandable ? '1px solid var(--border)' : 'none', cursor: hasExpandable ? 'pointer' : 'default', flexWrap: 'wrap' }}
         onClick={() => hasExpandable && setExpanded(v => !v)}
