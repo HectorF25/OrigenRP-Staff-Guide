@@ -98,8 +98,8 @@ export function StatCard({ label, value, color }) {
 }
 
 
-export default function LogEntry({ log, showChannel = false }) {
-  const [expanded, setExpanded] = useState(false);
+export default function LogEntry({ log, showChannel = false, defaultExpanded = false }) {
+  const [expanded, setExpanded] = useState(defaultExpanded);
 
   const embed      = log.metadata?.embeds?.[0];
   const level      = log.level ?? 'info';

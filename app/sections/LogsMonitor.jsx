@@ -84,8 +84,8 @@ export default function LogsMonitor() {
         </button>
       </div>
 
-      <div className="fm-split">
-        <div className={`fm-nav${navOpen ? ' open' : ''}`}>
+      <div className={`fm-split${isSearchMode ? ' search-mode' : ''}`}>
+        <div className={`fm-nav${navOpen ? ' open' : ''}${isSearchMode ? ' hidden' : ''}`}>
           <div className="fm-nav-head">CATEGORÍAS</div>
 
           {loading && <div style={{ padding: '16px 12px', color: 'var(--text3)', fontSize: 12 }}>Cargando…</div>}
@@ -126,7 +126,7 @@ export default function LogsMonitor() {
           })}
         </div>
 
-        <div className="fm-content">
+        <div className={`fm-content${isSearchMode ? ' fullwidth' : ''}`}>
           {isSearchMode ? (
             <SearchView query={debouncedSearch} />
           ) : selectedChannel ? (

@@ -31,7 +31,7 @@ function CategoryGroup({ group, query }) {
             <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text2)' }}>{ch.channelName}</span>
             <span style={{ fontSize: 10, color: 'var(--text3)', background: 'var(--surface2)', border: '1px solid var(--border)', padding: '0 5px' }}>{ch.logs.length}</span>
           </div>
-          {ch.logs.map(log => <LogEntry key={log._id} log={log} showChannel={false} />)}
+          {ch.logs.map(log => <LogEntry key={log._id} log={log} showChannel={false} defaultExpanded={true} />)}
         </div>
       ))}
     </div>
