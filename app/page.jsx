@@ -21,7 +21,7 @@ import Conceptos from './sections/Conceptos';
 import Casos from './sections/Casos';
 import Flashcards from './sections/Flashcards';
 import NormativaCompleta from './sections/NormativaCompleta';
-import Logs from './sections/Logs';
+import LogsMonitor from './sections/LogsMonitor';
 
 const SECTIONS = [
   ConsultorIA,       
@@ -36,8 +36,8 @@ const SECTIONS = [
   Conceptos,         
   Casos,              
   Flashcards,        
-  NormativaCompleta, 
-  Logs               
+  NormativaCompleta,
+  LogsMonitor
 ];
 
 export default function Page() {
