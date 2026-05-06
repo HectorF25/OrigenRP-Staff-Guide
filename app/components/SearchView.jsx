@@ -7,7 +7,7 @@ import { groupLogsByCategory, FM_PROJECT_ID } from '@/lib/fivemonitor';
 const PAGE_SIZE = 20;
 
 function CategoryGroup({ group, query }) {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
   const CAT_COLORS = ['var(--red)', 'var(--blue)', 'var(--purple)', 'var(--green)', 'var(--orange)', 'var(--cyan)'];
   const colorIdx = Math.abs([...group.categoryName].reduce((a, c) => a + c.charCodeAt(0), 0)) % CAT_COLORS.length;
   const catColor = CAT_COLORS[colorIdx];
@@ -48,10 +48,13 @@ export default function SearchView({ query }) {
   const [totalCount, setTotalCount]   = useState(0);
   const [totalPages, setTotalPages]   = useState(1);
   const queryRef = useRef(query);
+  const loaderRef = useRef(null);
+  const loadingMoreRef = useRef(false);
 
   const doSearch = useCallback(async (q, p, initial) => {
     if (!q.trim()) { setGroups([]); setAllLogs([]); setTotalCount(0); return; }
     if (initial) setLoading(true); else setLoadingMore(true);
+    loadingMoreRef.current = true;
     setError(null);
     try {
       const url = `/api/fm/v1/projects/${FM_PROJECT_ID}/logs/search?q=${encodeURIComponent(q)}&limit=${PAGE_SIZE}&page=${p}`;
@@ -72,6 +75,7 @@ export default function SearchView({ query }) {
       if (queryRef.current === q) setError(e.message);
     } finally {
       if (initial) setLoading(false); else setLoadingMore(false);
+      loadingMoreRef.current = false;
     }
   }, []);
 
@@ -81,6 +85,20 @@ export default function SearchView({ query }) {
     if (query.trim().length >= 2) doSearch(query, 1, true);
     else setTotalCount(0);
   }, [query, doSearch]);
+
+  // Intersection Observer para carga automática
+  useEffect(() => {
+    if (!loaderRef.current || loading || page >= totalPages || loadingMoreRef.current) return;
+
+    const observer = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting && page < totalPages && !loadingMoreRef.current && queryRef.current.trim().length >= 2) {
+        doSearch(queryRef.current, page + 1, false);
+      }
+    }, { threshold: 0.1 });
+
+    observer.observe(loaderRef.current);
+    return () => observer.disconnect();
+  }, [page, totalPages, loading, doSearch]);
 
   if (!query.trim() || query.trim().length < 2) {
     return <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>Escribe al menos 2 caracteres para buscar en todos los logs</div>;
@@ -114,12 +132,14 @@ export default function SearchView({ query }) {
       {!loading && !error && allLogs.length === 0 && <div className="norm-empty">No se encontraron resultados para &ldquo;{query}&rdquo;</div>}
       {!loading && groups.map(g => <CategoryGroup key={g.categoryId} group={g} query={query} />)}
 
-      {!loading && !error && page < totalPages && (
-        <div style={{ textAlign: 'center', marginTop: 16, paddingBottom: 32 }}>
-          <button className="btns" onClick={() => doSearch(query, page + 1, false)} disabled={loadingMore} style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-            {loadingMore ? <><span className="spinner" />Cargando más…</> : <>Cargar más <span style={{ color: 'var(--text3)', fontSize: 11 }}>(pág. {page + 1}/{totalPages})</span></>}
-          </button>
-          <div style={{ marginTop: 6, fontSize: 11, color: 'var(--text3)' }}>Mostrando {allLogs.length.toLocaleString('es')} de {totalCount.toLocaleString('es')}</div>
+      {/* Trigger invisible para carga automática */}
+      {!loading && page < totalPages && <div ref={loaderRef} style={{ height: 1 }} />}
+
+      {/* Indicador de carga al final */}
+      {loadingMore && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '24px 0', color: 'var(--text3)', fontSize: 13, justifyContent: 'center' }}>
+          <span className="spinner" style={{ width: 16, height: 16 }} />
+          <span>Cargando más resultados…</span>
         </div>
       )}
     </div>
