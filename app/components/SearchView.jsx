@@ -31,7 +31,7 @@ function CategoryGroup({ group, query }) {
             <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text2)' }}>{ch.channelName}</span>
             <span style={{ fontSize: 10, color: 'var(--text3)', background: 'var(--surface2)', border: '1px solid var(--border)', padding: '0 5px' }}>{ch.logs.length}</span>
           </div>
-          {ch.logs.map(log => <LogEntry key={log._id} log={log} showChannel={false} defaultExpanded={true} />)}
+          {ch.logs.map(log => <LogEntry key={log._id} log={log} showChannel={true} defaultExpanded={true} />)}
         </div>
       ))}
     </div>
@@ -132,10 +132,8 @@ export default function SearchView({ query }) {
       {!loading && !error && allLogs.length === 0 && <div className="norm-empty">No se encontraron resultados para &ldquo;{query}&rdquo;</div>}
       {!loading && groups.map(g => <CategoryGroup key={g.categoryId} group={g} query={query} />)}
 
-      {/* Trigger invisible para carga automática */}
       {!loading && page < totalPages && <div ref={loaderRef} style={{ height: 1 }} />}
 
-      {/* Indicador de carga al final */}
       {loadingMore && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '24px 0', color: 'var(--text3)', fontSize: 13, justifyContent: 'center' }}>
           <span className="spinner" style={{ width: 16, height: 16 }} />
