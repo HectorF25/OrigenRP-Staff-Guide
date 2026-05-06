@@ -144,42 +144,21 @@ export default function LogsMonitor() {
 
   return (
     <div className="section active fm-section">
-      <div className="pg-header fm-header">
-        <div>
-          <div className="pg-title">Logs del Servidor</div>
-          <div className="pg-sub">
-            {loadingCats ? 'Conectando con FiveMonitor…'
-              : catError   ? `Error: ${catError}`
-              : `${categories.length} categorías · ${totalChannels} canales`}
-          </div>
-        </div>
-        <div className="fm-header-right">
-          <div className="fm-search-wrap">
-            <svg className="fm-search-icon" width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.75">
-              <circle cx="7" cy="7" r="5" /><line x1="11" y1="11" x2="15" y2="15" />
-            </svg>
-            <input
-              className="fm-search-input"
-              placeholder="Buscar en todos los canales…"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-            />
-            {search && (
-              <button className="fm-search-clear" onClick={() => { setSearch(''); setDebounced(''); }}>✕</button>
-            )}
-          </div>
-          <button className="fm-nav-toggle btns" onClick={() => setNavOpen(o => !o)}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
-            </svg>
-            Canales
-          </button>
-        </div>
-      </div>
-
       <div className="fm-split">
         <div className={`fm-nav${navOpen ? ' open' : ''}`}>
-          <div className="fm-nav-head">CATEGORÍAS</div>
+          <div className="fm-nav-page-header">
+            <div className="fm-nav-pg-title">Logs del Servidor</div>
+            <div className="fm-nav-pg-sub">Acceso a FiveMonitor para revisar logs</div>
+          </div>
+
+          <div className="fm-nav-head">
+            <span>CATEGORÍAS</span>
+            {!loadingCats && !catError && (
+              <span className="fm-nav-head-sub">
+                {categories.length} categorías · {totalChannels} canales
+              </span>
+            )}
+          </div>
 
           {loadingCats && <div className="fm-nav-loading">Cargando…</div>}
 
@@ -230,28 +209,56 @@ export default function LogsMonitor() {
         </div>
 
         <div className="fm-content">
-          {isSearch ? (
-            <SearchView query={debouncedSearch} />
-          ) : selected ? (
-            <LogViewer
-              key={selected.channel._id}
-              channel={selected.channel}
-              category={selected.category}
-              lastVisited={lastVisited[selected.channel._id]}
-            />
-          ) : (
-            <div className="fm-empty-state">
-              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.25">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                <polyline points="14,2 14,8 20,8" />
-                <line x1="16" y1="13" x2="8" y2="13" />
-                <line x1="16" y1="17" x2="8" y2="17" />
+
+          <div className="fm-content-toolbar">
+            <div className="fm-search-wrap" style={{ flex: 1 }}>
+              <svg className="fm-search-icon" width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.75">
+                <circle cx="7" cy="7" r="5" /><line x1="11" y1="11" x2="15" y2="15" />
               </svg>
-              <p>Selecciona un canal en el panel izquierdo</p>
-              <span>o usa la búsqueda para buscar en todos los canales a la vez</span>
+              <input
+                className="fm-search-input"
+                placeholder="Buscar en todos los canales…"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                style={{ width: '100%' }}
+              />
+              {search && (
+                <button className="fm-search-clear" onClick={() => { setSearch(''); setDebounced(''); }}>✕</button>
+              )}
             </div>
-          )}
+            <button className="fm-nav-toggle btns" onClick={() => setNavOpen(o => !o)}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
+              </svg>
+              Canales
+            </button>
+          </div>
+
+          <div className="fm-content-body">
+            {isSearch ? (
+              <SearchView query={debouncedSearch} />
+            ) : selected ? (
+              <LogViewer
+                key={selected.channel._id}
+                channel={selected.channel}
+                category={selected.category}
+                lastVisited={lastVisited[selected.channel._id]}
+              />
+            ) : (
+              <div className="fm-empty-state">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.25">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <polyline points="14,2 14,8 20,8" />
+                  <line x1="16" y1="13" x2="8" y2="13" />
+                  <line x1="16" y1="17" x2="8" y2="17" />
+                </svg>
+                <p>Selecciona un canal en el panel izquierdo</p>
+                <span>o usa la búsqueda para buscar en todos los canales a la vez</span>
+              </div>
+            )}
+          </div>
         </div>
+
       </div>
     </div>
   );
