@@ -991,7 +991,7 @@ body.gate-shown { overflow: hidden; }
   .user-pill { max-width: none; padding: 4px 8px 4px 4px; }
   .user-name  { display: none; }
 
-  .content { padding: 12px 12px 24px; max-width: 100%; }
+  .content { padding: 16px 16px 24px; max-width: 100%; }
 
   .pg-title { font-size: 19px; }
 
@@ -1004,7 +1004,7 @@ body.gate-shown { overflow: hidden; }
 
   /* Grids */
   .cmd-grid { grid-template-columns: 1fr; }
-  .rob-grid { grid-template-columns: repeat(2, 1fr); }
+  .rob-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
 
   .filters {
     flex-wrap: nowrap;
@@ -1028,9 +1028,9 @@ body.gate-shown { overflow: hidden; }
 
   .logs-frame-wrap {
     height: calc(100vh - 130px);
-    min-height: 380px;
+    min-height: 400px;
   }
-  .logs-card { padding: 28px 16px; }
+  .logs-card { padding: 28px 16px; margin-bottom: 16px; }
 
   .ai-chips {
     flex-wrap: nowrap;

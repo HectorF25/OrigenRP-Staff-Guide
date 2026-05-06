@@ -76,9 +76,9 @@ function FieldsGrid({ fields }) {
       {rows.map((row, ri) => (
         <div key={ri} style={{ display: 'grid', gridTemplateColumns: row.length === 1 ? '1fr' : `repeat(${row.length}, 1fr)`, gap: 8 }}>
           {row.map((f, fi) => (
-            <div key={fi} style={{ minWidth: 0 }}>
+            <div key={fi} style={{ minWidth: 0, overflow: 'hidden' }}>
               <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text3)', marginBottom: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.name}</div>
-              <div style={{ fontSize: 12.5, color: 'var(--text2)', lineHeight: 1.55, wordBreak: 'break-word' }}><Md text={f.value} /></div>
+              <div style={{ fontSize: 12.5, color: 'var(--text2)', lineHeight: 1.55, wordBreak: 'break-word', hyphens: 'auto' }}><Md text={f.value} /></div>
             </div>
           ))}
         </div>
@@ -110,9 +110,9 @@ export default function LogEntry({ log, showChannel = false }) {
   const hasExpandable = embed && (embed.fields?.length ?? 0) > 0;
 
   return (
-    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderLeft: `3px solid ${lvlBdr}`, marginBottom: 6, transition: 'border-color .14s' }}>
+    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderLeft: `3px solid ${lvlBdr}`, marginBottom: 10, transition: 'border-color .14s' }}>
       <div
-        style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', borderBottom: expanded || hasExpandable ? '1px solid var(--border)' : 'none', cursor: hasExpandable ? 'pointer' : 'default', flexWrap: 'wrap' }}
+        style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderBottom: expanded || hasExpandable ? '1px solid var(--border)' : 'none', cursor: hasExpandable ? 'pointer' : 'default', flexWrap: 'wrap' }}
         onClick={() => hasExpandable && setExpanded(v => !v)}
       >
         <span className={`pill ${pillCls}`} style={{ fontSize: 9, letterSpacing: 1.5, flexShrink: 0 }}>{levelLabel(level)}</span>
@@ -137,9 +137,9 @@ export default function LogEntry({ log, showChannel = false }) {
       </div>
 
       {(expanded || (!hasExpandable && (embed?.description || embed?.fields?.length))) && (
-        <div style={{ padding: '10px 14px', borderLeft: `2px solid ${lvlBdr}22` }}>
+        <div style={{ padding: '10px 14px', borderLeft: `2px solid ${lvlBdr}22`, minWidth: 0 }}>
           {embed?.description && (
-            <div style={{ fontSize: 12.5, color: 'var(--text2)', lineHeight: 1.6, marginBottom: hasExpandable ? 0 : 4 }}>
+            <div style={{ fontSize: 12.5, color: 'var(--text2)', lineHeight: 1.6, marginBottom: hasExpandable ? 0 : 4, wordBreak: 'break-word' }}>
               <Md text={embed.description} />
             </div>
           )}

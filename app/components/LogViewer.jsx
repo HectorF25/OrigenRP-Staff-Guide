@@ -84,7 +84,7 @@ export default function LogViewer({ channel }) {
       </div>
 
       {logs.length > 0 && (
-        <div className="rob-grid" style={{ marginBottom: 14 }}>
+        <div className="rob-grid" style={{ marginBottom: 16, gap: '12px' }}>
           <StatCard label="Cargados"   value={logs.length}  color="var(--text)" />
           <StatCard label="Error"      value={errCount}     color="var(--red)" />
           <StatCard label="Info"       value={infoCount}    color="var(--blue)" />
@@ -93,7 +93,7 @@ export default function LogViewer({ channel }) {
         </div>
       )}
 
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14, alignItems: 'center' }}>
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16, alignItems: 'center' }}>
         <div className="filters" style={{ marginBottom: 0 }}>
           {['all', 'error', 'info', 'warn'].map(f => (
             <button key={f} className={`fbtn${levelFilter === f ? ' active' : ''}`} onClick={() => setLevelFilter(f)}>
@@ -134,7 +134,9 @@ export default function LogViewer({ channel }) {
 
       {!loading && !error && logs.length === 0 && <div className="norm-empty">No hay logs en este canal.</div>}
       {!loading && logs.length > 0 && visible.length === 0 && <div className="norm-empty">Sin resultados para los filtros aplicados.</div>}
-      {!loading && visible.map(log => <LogEntry key={log._id} log={log} />)}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+        {!loading && visible.map(log => <LogEntry key={log._id} log={log} />)}
+      </div>
 
       {!loading && !error && logs.length > 0 && totalPages > 1 && (
         <div style={{ marginTop: 20, paddingBottom: 32 }}>
