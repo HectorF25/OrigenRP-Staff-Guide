@@ -3,7 +3,7 @@
 const nextConfig = {
   reactStrictMode: true,
   experimental: {
-    serverComponentsExternalPackages: ['@mlc-ai/web-llm', 'undici'],
+    serverComponentsExternalPackages: ['@mlc-ai/web-llm'],
   },
   images: {
     remotePatterns: [
