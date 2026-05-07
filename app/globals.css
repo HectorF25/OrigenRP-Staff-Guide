@@ -1235,14 +1235,12 @@ body.gate-shown { overflow: hidden; }
 .fm-nav {
   width: 210px;
   min-width: 210px;
-  min-height: 0;
   flex-shrink: 0;
   border-right: 1px solid var(--border);
   overflow-y: auto;
   overflow-x: hidden;
   background: var(--sb-bg);
-  display: flex;
-  flex-direction: column;
+  /* block layout so children stack and overflow triggers scroll */
   scrollbar-width: thin;
   scrollbar-color: var(--border) transparent;
 }

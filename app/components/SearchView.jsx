@@ -143,7 +143,7 @@ export default function SearchView({ query }) {
 
   if (!query || query.trim().length < 2) {
     return (
-      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', padding: '16px 20px 24px' }}>
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div className="fm-empty-state"><span>Escribe al menos 2 caracteres para buscar</span></div>
       </div>
     );
@@ -154,7 +154,7 @@ export default function SearchView({ query }) {
   const allLoaded = !loadingMore && !loading && loaded >= totalCount && totalCount > 0;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, width: '100%' }}>
 
       <div style={{ padding: '16px 20px 0', flexShrink: 0 }}>
         <div className="pg-header">
