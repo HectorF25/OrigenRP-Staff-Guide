@@ -2,7 +2,7 @@
 
 const nextConfig = {
   reactStrictMode: true,
-  serverExternalPackages: ['@mlc-ai/web-llm'],
+  serverExternalPackages: ['@mlc-ai/web-llm', 'undici'],
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: 'cdn.discordapp.com' }
