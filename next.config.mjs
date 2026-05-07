@@ -2,7 +2,9 @@
 
 const nextConfig = {
   reactStrictMode: true,
-  serverExternalPackages: ['@mlc-ai/web-llm', 'undici'],
+  experimental: {
+    serverComponentsExternalPackages: ['@mlc-ai/web-llm', 'undici'],
+  },
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: 'cdn.discordapp.com' }
@@ -10,8 +12,8 @@ const nextConfig = {
   },
   async rewrites() {
     return [
-      { source: '/mis-logs',           destination: '/api/proxy' },
-      { source: '/mis-logs/:path*',    destination: '/api/proxy/:path*' }
+      { source: '/mis-logs',        destination: '/api/proxy' },
+      { source: '/mis-logs/:path*', destination: '/api/proxy/:path*' }
     ];
   }
 };
