@@ -99,7 +99,7 @@ export default function LogViewer({ channel, category, lastVisited }) {
   const warnCount = logs.filter(l => l.level === 'warn').length;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', minHeight: 0 }}>
       <div style={{ padding: '16px 20px 0', flexShrink: 0 }}>
         <div className="pg-header">
           <div>

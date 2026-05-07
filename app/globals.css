@@ -1352,9 +1352,7 @@ body.gate-shown { overflow: hidden; }
 .fm-content-body {
   flex: 1;
   min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding: 0;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
 }
@@ -1389,7 +1387,6 @@ body.gate-shown { overflow: hidden; }
   }
   .fm-nav.open { display: flex; }
   .fm-nav-toggle { display: flex; align-items: center; gap: 6px; }
-  .fm-content-body { padding: 12px 12px 24px; }
   .fm-search-input { width: 100%; }
 }
 
