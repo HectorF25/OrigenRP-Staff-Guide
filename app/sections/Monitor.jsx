@@ -222,7 +222,11 @@ export default function Monitor() {
       const data = await res.json();
       if (!mountedRef.current) return;
 
-      const list = Array.isArray(data) ? data : (data.streams ?? []);
+      const raw  = Array.isArray(data) ? data : (data.streams ?? []);
+      const list = raw.map(s => ({
+        ...s,
+        _id: s._id ?? s.id ?? s.streamId ?? s.identifier ?? String(Math.random()),
+      }));
 
       setStreams(prev => {
         const activeIds = new Set(list.map(s => s._id));
