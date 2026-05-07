@@ -32,14 +32,6 @@ function safeStr(val) {
   return String(val);
 }
 
-const WEBM_CODECS = [
-  'video/webm; codecs="vp9,opus"',
-  'video/webm; codecs="vp9"',
-  'video/webm; codecs="vp8,vorbis"',
-  'video/webm; codecs="vp8"',
-  'video/webm',
-];
-
 function LiveViewer({ stream, onClose }) {
   const videoRef      = useRef(null);
   const [status, setStatus] = useState('connecting');
@@ -52,11 +44,21 @@ function LiveViewer({ stream, onClose }) {
     const video = videoRef.current;
     if (!video) return;
 
-    let sb     = null;
-    let msUrl  = null;
-    let queue  = [];
-    let closed = false;
-    let played = false;
+    let sb       = null;
+    let msUrl    = null;
+    let queue    = [];
+    let closed   = false;
+    let played   = false;
+    let sbReady  = false;
+
+    function detectCodec(buf) {
+      const u8 = new Uint8Array(buf, 0, Math.min(512, buf.byteLength));
+      let s = '';
+      for (let i = 0; i < u8.length; i++) s += (u8[i] >= 32 && u8[i] < 127) ? String.fromCharCode(u8[i]) : ' ';
+      if (s.includes('V_VP9')) return 'video/webm; codecs="vp9"';
+      if (s.includes('V_VP8')) return 'video/webm; codecs="vp8"';
+      return 'video/webm; codecs="vp8"';
+    }
 
     function tryFlush() {
       if (closed || !sb || sb.updating || queue.length === 0) return;
@@ -69,17 +71,15 @@ function LiveViewer({ stream, onClose }) {
       }
     }
 
-    // MediaSource — use default 'segments' mode (required for timestamp-bearing WebM)
-    const ms = new MediaSource();
-    msUrl = URL.createObjectURL(ms);
-    video.src = msUrl;
-
-    ms.addEventListener('sourceopen', () => {
-      const codec = WEBM_CODECS.find(c => MediaSource.isTypeSupported(c));
-      if (!codec) { setErrMsg('WebM/VP8/VP9 no soportado en este navegador'); setStatus('error'); return; }
+    function maybeInit() {
+      if (sbReady || ms.readyState !== 'open' || queue.length === 0) return;
+      sbReady = true;
+      const codec = detectCodec(queue[0]);
+      if (!MediaSource.isTypeSupported(codec)) {
+        setErrMsg(`Codec no soportado: ${codec}`); setStatus('error'); return;
+      }
       try {
         sb = ms.addSourceBuffer(codec);
-        // Default mode = 'segments': respects timestamps embedded in fragmented WebM
         sb.addEventListener('updateend', () => {
           tryFlush();
           if (!played && sb.buffered.length > 0) {
@@ -89,9 +89,13 @@ function LiveViewer({ stream, onClose }) {
         });
         tryFlush();
       } catch (e) { setErrMsg(e.message); setStatus('error'); }
-    });
+    }
 
-    // Video element events drive the UI state
+    const ms = new MediaSource();
+    msUrl = URL.createObjectURL(ms);
+    video.src = msUrl;
+    ms.addEventListener('sourceopen', maybeInit);
+
     const onPlaying = () => setStatus('live');
     const onVidErr  = () => {
       const msg = video.error?.message ?? `code ${video.error?.code ?? '?'}`;
@@ -118,6 +122,7 @@ function LiveViewer({ stream, onClose }) {
         const bytes  = new Uint8Array(binary.length);
         for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
         queue.push(bytes.buffer);
+        maybeInit();
         tryFlush();
       } catch {}
     });
@@ -175,7 +180,6 @@ function LiveViewer({ stream, onClose }) {
             <span>{status === 'closed' ? 'Stream cerrado' : (errMsg || 'Error')}</span>
           </div>
         )}
-        {/* Always mounted so browser initialises decoder early; overlay covers it while connecting */}
         <video
           ref={videoRef}
           className="mn-live-img"
