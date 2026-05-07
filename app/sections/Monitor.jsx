@@ -34,12 +34,11 @@ function safeStr(val) {
 
 
 function LiveViewer({ stream, onClose }) {
-  const imgRef      = useRef(null);
-  const esRef       = useRef(null);
-  const blobRef     = useRef(null);
-  const [status, setStatus]   = useState('connecting'); // connecting | live | error | closed
-  const [errMsg, setErrMsg]   = useState('');
-  const [fps, setFps]         = useState(0);
+  const imgRef        = useRef(null);
+  const esRef         = useRef(null);
+  const [status, setStatus] = useState('connecting'); // connecting | live | error | closed
+  const [errMsg, setErrMsg] = useState('');
+  const [fps, setFps]       = useState(0);
   const frameCountRef = useRef(0);
   const lastFpsTs     = useRef(Date.now());
 
@@ -57,41 +56,35 @@ function LiveViewer({ stream, onClose }) {
         frameCountRef.current = 0;
         lastFpsTs.current = now;
       }
-
-      try {
-        const binary = atob(evt.data);
-        const bytes  = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-        const blob   = new Blob([bytes], { type: 'image/jpeg' });
-        const url    = URL.createObjectURL(blob);
-
-        if (imgRef.current) imgRef.current.src = url;
-
-        if (blobRef.current) URL.revokeObjectURL(blobRef.current);
-        blobRef.current = url;
-      } catch {}
+      if (imgRef.current && evt.data) {
+        imgRef.current.src = `data:image/jpeg;base64,${evt.data}`;
+      }
+      if (status !== 'live') setStatus('live');
     });
 
     es.addEventListener('error', (evt) => {
-      try {
-        const d = JSON.parse(evt.data ?? '{}');
-        setErrMsg(d.message ?? 'Error de conexión');
-      } catch {
-        setErrMsg('Error de conexión');
+      if (evt.data) {
+        try {
+          const d = JSON.parse(evt.data);
+          setErrMsg(d.message ?? 'Error del servidor');
+        } catch {
+          setErrMsg(String(evt.data));
+        }
+      } else {
+        setErrMsg('No se pudo conectar al stream');
       }
       setStatus('error');
     });
 
     es.addEventListener('close', () => setStatus('closed'));
 
-    es.onerror = () => {
-      if (es.readyState === EventSource.CLOSED) setStatus('closed');
+    es.onerror = (evt) => {
+      if (es.readyState === EventSource.CLOSED) {
+        setStatus('closed');
+      }
     };
 
-    return () => {
-      es.close();
-      if (blobRef.current) URL.revokeObjectURL(blobRef.current);
-    };
+    return () => { es.close(); };
   }, [stream._id]);
 
   return (

@@ -11,7 +11,7 @@ export function middleware(request) {
 
     "font-src 'self' https://fonts.gstatic.com",
 
-    "img-src 'self' data: https://cdn.discordapp.com",
+    "img-src 'self' data: blob: https://cdn.discordapp.com",
 
     "connect-src 'self' https://huggingface.co https://*.huggingface.co",
 
