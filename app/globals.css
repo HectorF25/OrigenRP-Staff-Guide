@@ -1056,7 +1056,7 @@ body.gate-shown { overflow: hidden; }
   .content { padding: 20px 20px; }
   .tb-search { width: 170px; }
   .cmd-grid { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
-  .fm-section { margin: -20px -20px !important; }
+  .fm-section { margin: -20px -20px !important; display: flex !important; }
 }
 
 @media (max-width: 767px) {
@@ -1222,7 +1222,7 @@ body.gate-shown { overflow: hidden; }
   padding-bottom: 0 !important;
   height: calc(100vh - 54px);
   overflow: hidden;
-  display: flex;
+  display: flex !important;        /* beats .section.active { display: block } (0,2,0 vs 0,1,0) */
   flex-direction: column;
 }
 
@@ -1373,7 +1373,7 @@ body.gate-shown { overflow: hidden; }
 .fm-nav-toggle { display: none; }
 
 @media (max-width: 767px) {
-  .fm-section { margin: -16px -16px !important; height: calc(100vh - 50px); }
+  .fm-section { margin: -16px -16px !important; height: calc(100vh - 50px); display: flex !important; }
   .fm-split { flex-direction: column; }
   .fm-nav {
     width: 100%;
