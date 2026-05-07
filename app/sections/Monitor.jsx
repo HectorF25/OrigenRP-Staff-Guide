@@ -17,7 +17,19 @@ function fmtDuration(seconds) {
 
 function fmtResolution(stream) {
   if (stream.width && stream.height) return `${stream.width}×${stream.height}`;
-  return stream.resolution ?? '—';
+  const r = stream.resolution;
+  if (!r) return '—';
+  if (typeof r === 'object') {
+    if (r.width && r.height) return `${r.width}×${r.height}`;
+    return '—';
+  }
+  return String(r);
+}
+
+function safeStr(val) {
+  if (val == null) return '—';
+  if (typeof val === 'object') return JSON.stringify(val);
+  return String(val);
 }
 
 
@@ -87,7 +99,7 @@ function LiveViewer({ stream, onClose }) {
       <div className="mn-live-header">
         <span className="mn-live-dot" />
         <span className="mn-live-name">
-          {stream.identifier ?? stream.name ?? stream._id}
+          {safeStr(stream.identifier ?? stream.name ?? stream._id)}
         </span>
         {status === 'live' && (
           <span className="mn-live-fps">{fps} fps</span>
@@ -117,7 +129,7 @@ function LiveViewer({ stream, onClose }) {
 
       <div className="mn-live-footer">
         <span>{fmtResolution(stream)}</span>
-        <span>{stream.watchers ?? 0} viendo</span>
+        <span>{Number(stream.watchers ?? 0)} viendo</span>
         <span>{fmtDuration(stream.duration ?? stream.timeOnline)}</span>
       </div>
     </div>
@@ -155,17 +167,17 @@ function StreamCard({ stream, isWatching, onWatch, onStop }) {
       </div>
 
       <div className="mn-card-info">
-        <div className="mn-card-name" title={stream.identifier ?? stream._id}>
-          {stream.identifier ?? stream.name ?? stream._id}
+        <div className="mn-card-name" title={safeStr(stream.identifier ?? stream._id)}>
+          {safeStr(stream.identifier ?? stream.name ?? stream._id)}
         </div>
         <div className="mn-card-meta">
           <span>{fmtResolution(stream)}</span>
           <span className="mn-card-sep">·</span>
           <span>{fmtDuration(stream.duration ?? stream.timeOnline)}</span>
-          {(stream.watchers ?? 0) > 0 && (
+          {Number(stream.watchers ?? 0) > 0 && (
             <>
               <span className="mn-card-sep">·</span>
-              <span>{stream.watchers} 👁</span>
+              <span>{Number(stream.watchers)} 👁</span>
             </>
           )}
         </div>
