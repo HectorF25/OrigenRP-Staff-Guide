@@ -1235,6 +1235,7 @@ body.gate-shown { overflow: hidden; }
 .fm-nav {
   width: 210px;
   min-width: 210px;
+  min-height: 0;
   flex-shrink: 0;
   border-right: 1px solid var(--border);
   overflow-y: auto;
@@ -1331,7 +1332,7 @@ body.gate-shown { overflow: hidden; }
 .fm-content {
   flex: 1;
   min-width: 0;
-  overflow-y: auto;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
 }
@@ -1344,15 +1345,18 @@ body.gate-shown { overflow: hidden; }
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
   background: var(--sb-bg);
-  position: sticky;
-  top: 0;
+  position: relative;
   z-index: 10;
 }
 
 .fm-content-body {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  padding: 16px 20px 24px;
+  overflow-x: hidden;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .fm-search-input {
@@ -1613,6 +1617,9 @@ body.gate-shown { overflow: hidden; }
   color: var(--text3);
   text-align: center;
   gap: 12px;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
 }
 .fm-empty-state svg { opacity: .3; }
 .fm-empty-state p { font-size: 14px; color: var(--text2); margin: 0; }
