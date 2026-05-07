@@ -17,6 +17,8 @@ export function middleware(request) {
 
     "worker-src blob: 'self'",
 
+    "media-src 'self' blob:",
+
     "frame-src 'self'",
 
     "object-src 'none'",

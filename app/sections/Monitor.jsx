@@ -32,23 +32,74 @@ function safeStr(val) {
   return String(val);
 }
 
+const WEBM_CODECS = [
+  'video/webm; codecs="vp9,opus"',
+  'video/webm; codecs="vp9"',
+  'video/webm; codecs="vp8,vorbis"',
+  'video/webm; codecs="vp8"',
+  'video/webm',
+];
 
 function LiveViewer({ stream, onClose }) {
-  const imgRef        = useRef(null);
-  const esRef         = useRef(null);
-  const [status, setStatus] = useState('connecting'); // connecting | live | error | closed
+  const videoRef      = useRef(null);
+  const [status, setStatus] = useState('connecting');
   const [errMsg, setErrMsg] = useState('');
   const [fps, setFps]       = useState(0);
   const frameCountRef = useRef(0);
   const lastFpsTs     = useRef(Date.now());
 
   useEffect(() => {
-    const es = new EventSource(`/api/monitor/live/${stream._id}`);
-    esRef.current = es;
+    const video = videoRef.current;
+    if (!video) return;
 
-    es.addEventListener('connected', () => setStatus('live'));
+    let ms      = null;
+    let sb      = null;
+    let msUrl   = null;
+    let queue   = [];
+    let closed  = false;
+
+    function tryFlush() {
+      if (closed || !sb || sb.updating || queue.length === 0) return;
+      try { sb.appendBuffer(queue.shift()); } catch (e) { /* ignore quota errors */ }
+    }
+
+    function enqueue(buf) {
+      queue.push(buf);
+      tryFlush();
+    }
+
+    ms    = new MediaSource();
+    msUrl = URL.createObjectURL(ms);
+    video.src = msUrl;
+
+    ms.addEventListener('sourceopen', () => {
+      const codec = WEBM_CODECS.find(c => MediaSource.isTypeSupported(c));
+      if (!codec) {
+        setErrMsg('Navegador sin soporte WebM/VP8/VP9');
+        setStatus('error');
+        return;
+      }
+      try {
+        sb = ms.addSourceBuffer(codec);
+        sb.mode = 'sequence';
+        sb.addEventListener('updateend', tryFlush);
+        tryFlush();
+      } catch (e) {
+        setErrMsg(e.message);
+        setStatus('error');
+      }
+    });
+
+    // Open SSE
+    const es = new EventSource(`/api/monitor/live/${stream._id}`);
+
+    es.addEventListener('connected', () => {
+      setStatus('live');
+      video.play().catch(() => {});
+    });
 
     es.addEventListener('frame', (evt) => {
+      if (!evt.data) return;
       frameCountRef.current += 1;
       const now = Date.now();
       if (now - lastFpsTs.current >= 1000) {
@@ -56,20 +107,18 @@ function LiveViewer({ stream, onClose }) {
         frameCountRef.current = 0;
         lastFpsTs.current = now;
       }
-      if (imgRef.current && evt.data) {
-        imgRef.current.src = `data:image/jpeg;base64,${evt.data}`;
-      }
-      if (status !== 'live') setStatus('live');
+      try {
+        const binary = atob(evt.data);
+        const bytes  = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        enqueue(bytes.buffer);
+      } catch {}
     });
 
     es.addEventListener('error', (evt) => {
       if (evt.data) {
-        try {
-          const d = JSON.parse(evt.data);
-          setErrMsg(d.message ?? 'Error del servidor');
-        } catch {
-          setErrMsg(String(evt.data));
-        }
+        try { setErrMsg(JSON.parse(evt.data).message ?? 'Error del servidor'); }
+        catch { setErrMsg(String(evt.data)); }
       } else {
         setErrMsg('No se pudo conectar al stream');
       }
@@ -77,14 +126,16 @@ function LiveViewer({ stream, onClose }) {
     });
 
     es.addEventListener('close', () => setStatus('closed'));
+    es.onerror = () => { if (es.readyState === EventSource.CLOSED) setStatus('closed'); };
 
-    es.onerror = (evt) => {
-      if (es.readyState === EventSource.CLOSED) {
-        setStatus('closed');
-      }
+    return () => {
+      closed = true;
+      es.close();
+      try { if (ms.readyState === 'open') ms.endOfStream(); } catch {}
+      URL.revokeObjectURL(msUrl);
+      video.removeAttribute('src');
+      video.load();
     };
-
-    return () => { es.close(); };
   }, [stream._id]);
 
   return (
@@ -101,7 +152,7 @@ function LiveViewer({ stream, onClose }) {
       </div>
 
       <div className="mn-live-body">
-        {(status === 'connecting') && (
+        {status === 'connecting' && (
           <div className="mn-live-overlay">
             <span className="spinner" style={{ width: 20, height: 20 }} />
             <span>Conectando…</span>
@@ -115,9 +166,14 @@ function LiveViewer({ stream, onClose }) {
             <span>{status === 'closed' ? 'Stream cerrado' : (errMsg || 'Error')}</span>
           </div>
         )}
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img ref={imgRef} alt="live" className="mn-live-img"
-          style={{ display: status === 'live' ? 'block' : 'none' }} />
+        <video
+          ref={videoRef}
+          className="mn-live-img"
+          style={{ display: status === 'live' ? 'block' : 'none' }}
+          muted
+          playsInline
+          autoPlay
+        />
       </div>
 
       <div className="mn-live-footer">
