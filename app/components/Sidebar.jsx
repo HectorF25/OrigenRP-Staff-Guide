@@ -1,6 +1,6 @@
 import {
   Sparkles, Terminal, Bot, PackageOpen, Scale, Users, Building2,
-  Landmark, Shield, BookOpen, Target, Layers, FileText, Activity
+  Landmark, Shield, BookOpen, Target, Layers, FileText, Activity, Cctv
 } from 'lucide-react';
 import { SERVER_ICON } from '@/lib/constants';
 
@@ -25,7 +25,8 @@ const NAV_GROUPS = [
     { i: 11, icon: Layers,      label: 'Flashcards' }
   ] },
   { title: 'Servidor',     items: [
-    { i: 13, icon: Activity,    label: 'Logs' }
+    { i: 13, icon: Activity,    label: 'Logs' },
+    { i: 14, icon: Cctv,        label: 'Monitor' },
   ] }
 ];
 

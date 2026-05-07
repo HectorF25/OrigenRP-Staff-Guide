@@ -22,22 +22,24 @@ import Casos from './sections/Casos';
 import Flashcards from './sections/Flashcards';
 import NormativaCompleta from './sections/NormativaCompleta';
 import LogsMonitor from './sections/LogsMonitor';
+import Monitor from './sections/Monitor';
 
 const SECTIONS = [
-  ConsultorIA,       
-  Comandos,         
-  BotTickets,       
-  ItemsArmas,         
-  Sanciones,         
-  OcMafias,          
-  Ilegales,         
-  Robos,             
-  NormaStaff,        
-  Conceptos,         
-  Casos,              
-  Flashcards,        
+  ConsultorIA,
+  Comandos,
+  BotTickets,
+  ItemsArmas,
+  Sanciones,
+  OcMafias,
+  Ilegales,
+  Robos,
+  NormaStaff,
+  Conceptos,
+  Casos,
+  Flashcards,
   NormativaCompleta,
-  LogsMonitor
+  LogsMonitor,
+  Monitor,
 ];
 
 export default function Page() {
