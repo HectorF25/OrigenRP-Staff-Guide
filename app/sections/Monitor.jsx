@@ -5,7 +5,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 const STREAMS_POLL = 12_000;
 const THUMB_POLL   =  3_000;
 
-// ── helpers ────────────────────────────────────────────────────────────────────
 function fmtDuration(s) {
   if (!s && s !== 0) return '—';
   const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
@@ -42,7 +41,6 @@ function detectCodec(buf) {
   return 'video/webm; codecs="vp8"';
 }
 
-// ── LiveVideo ──────────────────────────────────────────────────────────────────
 function LiveVideo({ streamId }) {
   const videoRef      = useRef(null);
   const [status, setStatus] = useState('connecting');
@@ -102,18 +100,15 @@ function LiveVideo({ streamId }) {
         maybeInit(); tryFlush();
       } catch {}
     });
-    // Named server event: event: error
     es.addEventListener('error', (evt) => {
-      if (evt.data) setStatus('error'); // server sent an explicit error payload
-      // No data → native EventSource network error; let onerror handle reconnect logic
+      if (evt.data) setStatus('error');
     });
     es.addEventListener('close', () => setStatus('closed'));
-    // Native EventSource errors (network drop / reconnect attempts)
     es.onerror = () => {
       if (es.readyState === EventSource.CLOSED) {
         setStatus('closed');
       } else if (es.readyState === EventSource.CONNECTING) {
-        setStatus('connecting'); // reconnecting — reset so overlay shows spinner again
+        setStatus('connecting');
       }
     };
 
@@ -145,7 +140,6 @@ function LiveVideo({ streamId }) {
   );
 }
 
-// ── CameraCard ─────────────────────────────────────────────────────────────────
 function CameraCard({ stream, isLive, onToggleLive, onExpand }) {
   const [hovered, setHovered] = useState(false);
   const [thumbTs, setThumbTs] = useState(Date.now());
@@ -167,14 +161,12 @@ function CameraCard({ stream, isLive, onToggleLive, onExpand }) {
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      {/* media */}
       <div className="mnc-media">
         {isLive
           ? <LiveVideo streamId={stream._id} />
           // eslint-disable-next-line @next/next/no-img-element
           : <img src={`/api/monitor/stream/${stream._id}/thumbnail?t=${thumbTs}`} alt={name} className="mnc-img" />}
 
-        {/* top strip */}
         <div className="mnc-top">
           <span className={`mnc-badge${isLive ? ' mnc-badge-live' : ''}`}>
             {isLive
@@ -184,13 +176,11 @@ function CameraCard({ stream, isLive, onToggleLive, onExpand }) {
           <span className="mnc-name">{name}</span>
         </div>
 
-        {/* bottom strip */}
         <div className="mnc-bottom">
           <span>{dur}</span>
           {res && <span>{res}</span>}
         </div>
 
-        {/* hover overlay */}
         <div className={`mnc-overlay${hovered ? ' mnc-overlay-show' : ''}`}>
           <button
             className={`mnc-ov-btn${isLive ? ' mnc-ov-stop' : ' mnc-ov-play'}`}
@@ -212,7 +202,6 @@ function CameraCard({ stream, isLive, onToggleLive, onExpand }) {
   );
 }
 
-// ── PlayerRow ──────────────────────────────────────────────────────────────────
 function PlayerRow({ stream, isLive, onToggle }) {
   const name = streamName(stream);
   const dur  = fmtDuration(stream.duration ?? stream.timeOnline);
@@ -234,7 +223,6 @@ function PlayerRow({ stream, isLive, onToggle }) {
   );
 }
 
-// ── ExpandedModal ──────────────────────────────────────────────────────────────
 function ExpandedModal({ stream, isLive, onClose }) {
   const [logs, setLogs]         = useState([]);
   const [logsLoading, setLogsLoading] = useState(true);
@@ -305,7 +293,6 @@ function ExpandedModal({ stream, isLive, onClose }) {
   );
 }
 
-// ── micro icons ────────────────────────────────────────────────────────────────
 const ICam    = ({ size = 10 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: 3, flexShrink: 0 }}>
     <path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/>
@@ -343,7 +330,6 @@ const IRefresh = () => (
 );
 
 
-// ── main Monitor ───────────────────────────────────────────────────────────────
 export default function Monitor() {
   const [streams,     setStreams]     = useState([]);
   const [loading,     setLoading]     = useState(true);
@@ -409,7 +395,6 @@ export default function Monitor() {
   return (
     <div className="mnl-root section active">
 
-      {/* ── left sidebar ───────────────────────────────────────── */}
       <aside className={`mnl-sb${showSidebar ? '' : ' mnl-sb-hidden'}`}>
         <div className="mnl-sb-top">
           <div className="mnl-sb-title-row">
@@ -470,16 +455,13 @@ export default function Monitor() {
         </div>
       </aside>
 
-      {/* mobile backdrop to close sidebar */}
       {showSidebar && (
         <div className="mnl-mob-backdrop" onClick={() => setShowSidebar(false)} />
       )}
 
-      {/* ── right content ──────────────────────────────────────── */}
       <div className="mnl-content">
         <div className="mnl-head">
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            {/* mobile sidebar toggle */}
             <button
               className="mnl-sb-toggle"
               onClick={() => setShowSidebar(v => !v)}
@@ -541,7 +523,6 @@ export default function Monitor() {
         </div>
       </div>
 
-      {/* ── expanded modal ─────────────────────────────────────── */}
       {expanded && (
         <ExpandedModal
           stream={expanded}
