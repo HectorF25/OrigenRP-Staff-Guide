@@ -33,12 +33,13 @@ function safeStr(v) {
 }
 
 function detectCodec(buf) {
-  const u8 = new Uint8Array(buf, 0, Math.min(512, buf.byteLength));
+  const len = Math.min(4096, buf.byteLength ?? buf.length ?? 0);
+  const u8  = new Uint8Array(buf instanceof ArrayBuffer ? buf : buf.buffer ?? buf, 0, len);
   let s = '';
   for (let i = 0; i < u8.length; i++) s += (u8[i] >= 32 && u8[i] < 127) ? String.fromCharCode(u8[i]) : ' ';
   if (s.includes('V_VP9')) return 'video/webm; codecs="vp9"';
   if (s.includes('V_VP8')) return 'video/webm; codecs="vp8"';
-  return 'video/webm; codecs="vp8"';
+  return 'video/webm; codecs="vp9"';
 }
 
 function LiveVideo({ streamId }) {
@@ -50,7 +51,7 @@ function LiveVideo({ streamId }) {
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
-    let sb = null, msUrl = null, queue = [], closed = false, played = false, sbReady = false;
+    let sb = null, msUrl = null, queue = [], closed = false, sbReady = false;
 
     function tryFlush() {
       if (closed || !sb || sb.updating || !queue.length) return;
@@ -69,15 +70,7 @@ function LiveVideo({ streamId }) {
       try {
         sb = ms.addSourceBuffer(codec);
         sb.mode = 'sequence';
-        sb.addEventListener('updateend', () => {
-          tryFlush();
-          if (!played && sb.buffered.length) {
-            played = true;
-            video.play()
-              .then(() => { if (!closed) setStatus('live'); })
-              .catch(() => {});
-          }
-        });
+        sb.addEventListener('updateend', tryFlush);
         tryFlush();
       } catch { setStatus('error'); }
     }
@@ -86,8 +79,13 @@ function LiveVideo({ streamId }) {
     msUrl = URL.createObjectURL(ms);
     video.src = msUrl;
     ms.addEventListener('sourceopen', maybeInit);
+
+    video.addEventListener('canplay', () => {
+      if (!closed) video.play().catch(() => {});
+    });
     video.addEventListener('playing',    () => { if (!closed) setStatus('live'); });
     video.addEventListener('timeupdate', () => { if (!closed) setStatus('live'); });
+
     let firstFrame = false;
     const watchdog = setTimeout(() => {
       if (!firstFrame && !closed) setStatus('error');
@@ -110,9 +108,7 @@ function LiveVideo({ streamId }) {
         maybeInit(); tryFlush();
       } catch {}
     });
-    es.addEventListener('error', (evt) => {
-      if (evt.data) setStatus('error');
-    });
+    es.addEventListener('error', (evt) => { if (evt.data) setStatus('error'); });
     es.addEventListener('close', () => setStatus('closed'));
     es.onerror = () => {
       if (es.readyState === EventSource.CLOSED) setStatus('closed');
@@ -133,7 +129,7 @@ function LiveVideo({ streamId }) {
       <video
         ref={videoRef}
         className="mnv-video"
-        muted playsInline autoPlay
+        muted playsInline
       />
       {status !== 'live' && (
         <div className="mnv-status">
