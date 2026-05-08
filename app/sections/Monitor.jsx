@@ -82,11 +82,15 @@ function LiveVideo({ streamId }) {
     video.src = msUrl;
     ms.addEventListener('sourceopen', maybeInit);
     video.addEventListener('playing', () => setStatus('live'));
-    video.addEventListener('error',   () => setStatus('error'));
+    let firstFrame = false;
+    const watchdog = setTimeout(() => {
+      if (!firstFrame && !closed) setStatus('error');
+    }, 10000);
 
     const es = new EventSource(`/api/monitor/live/${streamId}`);
     es.addEventListener('frame', evt => {
       if (!evt.data || closed) return;
+      firstFrame = true;
       fcRef.current++;
       const now = Date.now();
       if (now - tsRef.current >= 1000) {
@@ -105,15 +109,13 @@ function LiveVideo({ streamId }) {
     });
     es.addEventListener('close', () => setStatus('closed'));
     es.onerror = () => {
-      if (es.readyState === EventSource.CLOSED) {
-        setStatus('closed');
-      } else if (es.readyState === EventSource.CONNECTING) {
-        setStatus('connecting');
-      }
+      if (es.readyState === EventSource.CLOSED) setStatus('closed');
     };
 
     return () => {
-      closed = true; es.close();
+      closed = true;
+      clearTimeout(watchdog);
+      es.close();
       try { if (ms.readyState === 'open') ms.endOfStream(); } catch {}
       URL.revokeObjectURL(msUrl);
       video.removeAttribute('src'); video.load();
