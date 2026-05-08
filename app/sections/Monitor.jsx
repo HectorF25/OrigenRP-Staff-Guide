@@ -2,319 +2,370 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-const STREAMS_POLL = 12_000;  // 12 s
-const THUMB_POLL   =  3_000;  //  3 s
+const STREAMS_POLL = 12_000;
+const THUMB_POLL   =  3_000;
 
-function fmtDuration(seconds) {
-  if (!seconds && seconds !== 0) return '—';
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = Math.floor(seconds % 60);
+// ── helpers ────────────────────────────────────────────────────────────────────
+function fmtDuration(s) {
+  if (!s && s !== 0) return '—';
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
   if (h > 0) return `${h}h ${m}m`;
-  if (m > 0) return `${m}m ${s}s`;
-  return `${s}s`;
+  if (m > 0) return `${m}m`;
+  return `${Math.floor(s % 60)}s`;
 }
 
-function fmtResolution(stream) {
+function fmtRes(stream) {
   if (stream.width && stream.height) return `${stream.width}×${stream.height}`;
   const r = stream.resolution;
-  if (!r) return '—';
-  if (typeof r === 'object') {
-    if (r.width && r.height) return `${r.width}×${r.height}`;
-    return '—';
-  }
-  return String(r);
+  if (!r) return '';
+  if (typeof r === 'object' && r.width) return `${r.width}×${r.height}`;
+  return typeof r === 'string' ? r : '';
 }
 
-function safeStr(val) {
-  if (val == null) return '—';
-  if (typeof val === 'object') return JSON.stringify(val);
-  return String(val);
+function streamName(s) {
+  const n = s.identifier ?? s.name ?? s._id ?? '';
+  return typeof n === 'string' ? n : String(n);
 }
 
-function LiveViewer({ stream, onClose }) {
+function safeStr(v) {
+  if (v == null) return '—';
+  if (typeof v === 'object') return JSON.stringify(v);
+  return String(v);
+}
+
+function detectCodec(buf) {
+  const u8 = new Uint8Array(buf, 0, Math.min(512, buf.byteLength));
+  let s = '';
+  for (let i = 0; i < u8.length; i++) s += (u8[i] >= 32 && u8[i] < 127) ? String.fromCharCode(u8[i]) : ' ';
+  if (s.includes('V_VP9')) return 'video/webm; codecs="vp9"';
+  if (s.includes('V_VP8')) return 'video/webm; codecs="vp8"';
+  return 'video/webm; codecs="vp8"';
+}
+
+// ── LiveVideo ──────────────────────────────────────────────────────────────────
+function LiveVideo({ streamId }) {
   const videoRef      = useRef(null);
   const [status, setStatus] = useState('connecting');
-  const [errMsg, setErrMsg] = useState('');
   const [fps, setFps]       = useState(0);
-  const frameCountRef = useRef(0);
-  const lastFpsTs     = useRef(Date.now());
+  const fcRef = useRef(0), tsRef = useRef(Date.now());
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
-
-    let sb       = null;
-    let msUrl    = null;
-    let queue    = [];
-    let closed   = false;
-    let played   = false;
-    let sbReady  = false;
-
-    function detectCodec(buf) {
-      const u8 = new Uint8Array(buf, 0, Math.min(512, buf.byteLength));
-      let s = '';
-      for (let i = 0; i < u8.length; i++) s += (u8[i] >= 32 && u8[i] < 127) ? String.fromCharCode(u8[i]) : ' ';
-      if (s.includes('V_VP9')) return 'video/webm; codecs="vp9"';
-      if (s.includes('V_VP8')) return 'video/webm; codecs="vp8"';
-      return 'video/webm; codecs="vp8"';
-    }
+    let sb = null, msUrl = null, queue = [], closed = false, played = false, sbReady = false;
 
     function tryFlush() {
-      if (closed || !sb || sb.updating || queue.length === 0) return;
-      try {
-        sb.appendBuffer(queue.shift());
-      } catch (e) {
-        if (e.name === 'QuotaExceededError' && sb.buffered.length > 0) {
+      if (closed || !sb || sb.updating || !queue.length) return;
+      try { sb.appendBuffer(queue.shift()); }
+      catch (e) {
+        if (e.name === 'QuotaExceededError' && sb.buffered.length)
           sb.remove(sb.buffered.start(0), sb.buffered.start(0) + 5);
-        }
       }
     }
 
     function maybeInit() {
-      if (sbReady || ms.readyState !== 'open' || queue.length === 0) return;
+      if (sbReady || ms.readyState !== 'open' || !queue.length) return;
       sbReady = true;
       const codec = detectCodec(queue[0]);
-      if (!MediaSource.isTypeSupported(codec)) {
-        setErrMsg(`Codec no soportado: ${codec}`); setStatus('error'); return;
-      }
+      if (!MediaSource.isTypeSupported(codec)) { setStatus('error'); return; }
       try {
         sb = ms.addSourceBuffer(codec);
+        sb.mode = 'sequence';
         sb.addEventListener('updateend', () => {
           tryFlush();
-          if (!played && sb.buffered.length > 0) {
-            played = true;
-            video.play().catch(() => {});
-          }
+          if (!played && sb.buffered.length) { played = true; video.play().catch(() => {}); }
         });
         tryFlush();
-      } catch (e) { setErrMsg(e.message); setStatus('error'); }
+      } catch { setStatus('error'); }
     }
 
     const ms = new MediaSource();
     msUrl = URL.createObjectURL(ms);
     video.src = msUrl;
     ms.addEventListener('sourceopen', maybeInit);
+    video.addEventListener('playing', () => setStatus('live'));
+    video.addEventListener('error',   () => setStatus('error'));
 
-    const onPlaying = () => setStatus('live');
-    const onVidErr  = () => {
-      const msg = video.error?.message ?? `code ${video.error?.code ?? '?'}`;
-      setErrMsg(`Error de video: ${msg}`);
-      setStatus('error');
-    };
-    video.addEventListener('playing', onPlaying);
-    video.addEventListener('error',   onVidErr);
-
-    // SSE
-    const es = new EventSource(`/api/monitor/live/${stream._id}`);
-
-    es.addEventListener('frame', (evt) => {
-      if (!evt.data) return;
-      frameCountRef.current += 1;
+    const es = new EventSource(`/api/monitor/live/${streamId}`);
+    es.addEventListener('frame', evt => {
+      if (!evt.data || closed) return;
+      fcRef.current++;
       const now = Date.now();
-      if (now - lastFpsTs.current >= 1000) {
-        setFps(frameCountRef.current);
-        frameCountRef.current = 0;
-        lastFpsTs.current = now;
+      if (now - tsRef.current >= 1000) {
+        setFps(fcRef.current); fcRef.current = 0; tsRef.current = now;
       }
       try {
-        const binary = atob(evt.data);
-        const bytes  = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-        queue.push(bytes.buffer);
-        maybeInit();
-        tryFlush();
+        const bin = atob(evt.data);
+        const buf = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+        queue.push(buf.buffer);
+        maybeInit(); tryFlush();
       } catch {}
     });
-
-    es.addEventListener('error', (evt) => {
-      if (evt.data) {
-        try { setErrMsg(JSON.parse(evt.data).message ?? 'Error del servidor'); }
-        catch { setErrMsg(String(evt.data)); }
-      } else {
-        setErrMsg('No se pudo conectar al stream');
-      }
-      setStatus('error');
-    });
-
+    es.addEventListener('error', () => setStatus('error'));
     es.addEventListener('close', () => setStatus('closed'));
     es.onerror = () => { if (es.readyState === EventSource.CLOSED) setStatus('closed'); };
 
     return () => {
-      closed = true;
-      es.close();
-      video.removeEventListener('playing', onPlaying);
-      video.removeEventListener('error',   onVidErr);
+      closed = true; es.close();
       try { if (ms.readyState === 'open') ms.endOfStream(); } catch {}
       URL.revokeObjectURL(msUrl);
-      video.removeAttribute('src');
-      video.load();
+      video.removeAttribute('src'); video.load();
     };
-  }, [stream._id]);
+  }, [streamId]);
 
   return (
-    <div className="mn-live-card">
-      <div className="mn-live-header">
-        <span className="mn-live-dot" />
-        <span className="mn-live-name">
-          {safeStr(stream.identifier ?? stream.name ?? stream._id)}
-        </span>
-        {status === 'live' && (
-          <span className="mn-live-fps">{fps} fps</span>
-        )}
-        <button className="mn-live-close" onClick={onClose} title="Cerrar">✕</button>
-      </div>
-
-      <div className="mn-live-body">
-        {status === 'connecting' && (
-          <div className="mn-live-overlay">
-            <span className="spinner" style={{ width: 20, height: 20 }} />
-            <span>Conectando…</span>
-          </div>
-        )}
-        {(status === 'error' || status === 'closed') && (
-          <div className="mn-live-overlay mn-live-overlay-err">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-            </svg>
-            <span>{status === 'closed' ? 'Stream cerrado' : (errMsg || 'Error')}</span>
-          </div>
-        )}
-        <video
-          ref={videoRef}
-          className="mn-live-img"
-          style={{ opacity: status === 'live' ? 1 : 0 }}
-          muted
-          playsInline
-          autoPlay
-        />
-      </div>
-
-      <div className="mn-live-footer">
-        <span>{fmtResolution(stream)}</span>
-        <span>{Number(stream.watchers ?? 0)} viendo</span>
-        <span>{fmtDuration(stream.duration ?? stream.timeOnline)}</span>
-      </div>
+    <div className="mnv-wrap">
+      <video
+        ref={videoRef}
+        className="mnv-video"
+        style={{ opacity: status === 'live' ? 1 : 0 }}
+        muted playsInline autoPlay
+      />
+      {status !== 'live' && (
+        <div className="mnv-status">
+          {status === 'connecting' && <><span className="spinner" style={{ width: 13, height: 13 }} /><span>Conectando…</span></>}
+          {status === 'error'      && <span style={{ color: 'var(--red)' }}>Error de conexión</span>}
+          {status === 'closed'     && <span>Stream cerrado</span>}
+        </div>
+      )}
+      {status === 'live' && <span className="mnv-fps">{fps} fps</span>}
     </div>
   );
 }
 
-function StreamCard({ stream, isWatching, onWatch, onStop }) {
+// ── CameraCard ─────────────────────────────────────────────────────────────────
+function CameraCard({ stream, isLive, onToggleLive, onExpand }) {
+  const [hovered, setHovered] = useState(false);
   const [thumbTs, setThumbTs] = useState(Date.now());
   const timerRef = useRef(null);
 
   useEffect(() => {
-    if (isWatching) return;
+    if (isLive) { clearInterval(timerRef.current); return; }
     timerRef.current = setInterval(() => setThumbTs(Date.now()), THUMB_POLL);
     return () => clearInterval(timerRef.current);
-  }, [isWatching]);
+  }, [isLive]);
 
-  const thumbUrl = `/api/monitor/stream/${stream._id}/thumbnail?t=${thumbTs}`;
+  const name = streamName(stream);
+  const dur  = fmtDuration(stream.duration ?? stream.timeOnline);
+  const res  = fmtRes(stream);
 
   return (
-    <div className={`mn-card${isWatching ? ' mn-card-live' : ''}`}>
-      <div className="mn-card-thumb">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={thumbUrl}
-          alt={stream.identifier ?? stream._id}
-          className="mn-thumb-img"
-          loading="lazy"
-        />
-        {isWatching && (
-          <div className="mn-card-live-badge">
-            <span className="mn-live-dot-sm" />
-            EN VIVO
-          </div>
-        )}
-      </div>
+    <div
+      className={`mnc-card${isLive ? ' mnc-live' : ''}`}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      {/* media */}
+      <div className="mnc-media">
+        {isLive
+          ? <LiveVideo streamId={stream._id} />
+          // eslint-disable-next-line @next/next/no-img-element
+          : <img src={`/api/monitor/stream/${stream._id}/thumbnail?t=${thumbTs}`} alt={name} className="mnc-img" />}
 
-      <div className="mn-card-info">
-        <div className="mn-card-name" title={safeStr(stream.identifier ?? stream._id)}>
-          {safeStr(stream.identifier ?? stream.name ?? stream._id)}
+        {/* top strip */}
+        <div className="mnc-top">
+          <span className={`mnc-badge${isLive ? ' mnc-badge-live' : ''}`}>
+            {isLive
+              ? <><span className="mnc-dot" />LIVE</>
+              : <><ICam size={9} />FOTO</>}
+          </span>
+          <span className="mnc-name">{name}</span>
         </div>
-        <div className="mn-card-meta">
-          <span>{fmtResolution(stream)}</span>
-          <span className="mn-card-sep">·</span>
-          <span>{fmtDuration(stream.duration ?? stream.timeOnline)}</span>
-          {Number(stream.watchers ?? 0) > 0 && (
-            <>
-              <span className="mn-card-sep">·</span>
-              <span>{Number(stream.watchers)} 👁</span>
-            </>
-          )}
-        </div>
-      </div>
 
-      <div className="mn-card-actions">
-        {isWatching ? (
-          <button className="mn-btn mn-btn-stop" onClick={() => onStop(stream._id)}>
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor">
-              <rect x="4" y="4" width="16" height="16" rx="2"/>
-            </svg>
-            Detener
+        {/* bottom strip */}
+        <div className="mnc-bottom">
+          <span>{dur}</span>
+          {res && <span>{res}</span>}
+        </div>
+
+        {/* hover overlay */}
+        <div className={`mnc-overlay${hovered ? ' mnc-overlay-show' : ''}`}>
+          <button
+            className={`mnc-ov-btn${isLive ? ' mnc-ov-stop' : ' mnc-ov-play'}`}
+            onClick={e => { e.stopPropagation(); onToggleLive(stream._id); }}
+          >
+            {isLive ? <IStop /> : <IPlay />}
+            {isLive ? 'Detener' : 'Ver live'}
           </button>
-        ) : (
-          <button className="mn-btn mn-btn-watch" onClick={() => onWatch(stream)}>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-              <polygon points="5,3 19,12 5,21"/>
-            </svg>
-            Ver en vivo
+          <button
+            className="mnc-ov-btn mnc-ov-expand"
+            onClick={e => { e.stopPropagation(); onExpand(stream); }}
+          >
+            <IExpand />
+            Ampliar
           </button>
-        )}
+        </div>
       </div>
     </div>
   );
 }
 
-export default function Monitor() {
-  const [streams, setStreams]       = useState([]);
-  const [loading, setLoading]       = useState(true);
-  const [error, setError]           = useState(null);
-  const [lastRefresh, setLastRefresh] = useState(null);
-  const [watching, setWatching]     = useState({}); // id → stream object
-  const [view, setView]             = useState('grid'); // 'grid' | 'live'
+// ── PlayerRow ──────────────────────────────────────────────────────────────────
+function PlayerRow({ stream, isLive, onToggle }) {
+  const name = streamName(stream);
+  const dur  = fmtDuration(stream.duration ?? stream.timeOnline);
+  const res  = fmtRes(stream);
 
+  return (
+    <div className={`mnp-row${isLive ? ' mnp-row-on' : ''}`}>
+      <div className="mnp-info">
+        <span className="mnp-name">{name}</span>
+        <span className="mnp-meta">{dur}{res ? ` · ${res}` : ''}</span>
+      </div>
+      <label className="mnt-label">
+        <input type="checkbox" checked={isLive} onChange={() => onToggle(stream._id)} style={{ display: 'none' }} />
+        <span className={`mnt-track${isLive ? ' mnt-on' : ''}`}>
+          <span className="mnt-thumb" />
+        </span>
+      </label>
+    </div>
+  );
+}
+
+// ── ExpandedModal ──────────────────────────────────────────────────────────────
+function ExpandedModal({ stream, isLive, onClose }) {
+  const [logs, setLogs]         = useState([]);
+  const [logsLoading, setLogsLoading] = useState(true);
+  const [thumbTs]               = useState(Date.now());
+  const name = streamName(stream);
+
+  useEffect(() => {
+    setLogsLoading(true);
+    fetch(`/api/monitor/player-logs/${encodeURIComponent(name)}`)
+      .then(r => r.ok ? r.json() : Promise.resolve([]))
+      .then(data => {
+        const items = Array.isArray(data) ? data : (data.logs ?? data.items ?? data.data ?? []);
+        setLogs(items.slice(0, 5));
+      })
+      .catch(() => setLogs([]))
+      .finally(() => setLogsLoading(false));
+  }, [name]);
+
+  useEffect(() => {
+    const onKey = e => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return (
+    <div className="mnm-bg" onClick={onClose}>
+      <div className="mnm-box" onClick={e => e.stopPropagation()}>
+
+        <div className="mnm-head">
+          <div className="mnm-title">
+            {isLive && <span className="mnc-dot" style={{ marginRight: 6 }} />}
+            {name}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {isLive && <span className="mnc-badge mnc-badge-live" style={{ fontSize: 10 }}><span className="mnc-dot" />LIVE</span>}
+            <button className="mnm-close" onClick={onClose}>✕</button>
+          </div>
+        </div>
+
+        <div className="mnm-body">
+          <div className="mnm-video">
+            {isLive
+              ? <LiveVideo streamId={stream._id} />
+              // eslint-disable-next-line @next/next/no-img-element
+              : <img src={`/api/monitor/stream/${stream._id}/thumbnail?t=${thumbTs}`} alt={name} style={{ width: '100%', height: '100%', objectFit: 'contain', background: '#000' }} />}
+          </div>
+
+          <div className="mnm-logs">
+            <div className="mnm-logs-title">
+              <ILog /> Últimos 5 logs
+            </div>
+            {logsLoading ? (
+              <div className="mnm-logs-state"><span className="spinner" style={{ width: 13, height: 13 }} />Cargando…</div>
+            ) : logs.length === 0 ? (
+              <div className="mnm-logs-state" style={{ color: 'var(--text3)' }}>Sin logs disponibles</div>
+            ) : (
+              logs.map((log, i) => (
+                <div key={i} className="mnm-log-row">
+                  <span className="mnm-log-time">{safeStr(log.time ?? log.timestamp ?? log.created_at ?? '')}</span>
+                  <span className="mnm-log-msg">{safeStr(log.message ?? log.action ?? log.text ?? log.description ?? log)}</span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── micro icons ────────────────────────────────────────────────────────────────
+const ICam    = ({ size = 10 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: 3, flexShrink: 0 }}>
+    <path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/>
+  </svg>
+);
+const IPlay   = () => <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>;
+const IStop   = () => <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>;
+const IExpand = () => (
+  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+    <polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/>
+    <line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>
+  </svg>
+);
+const ILog    = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ flexShrink: 0 }}>
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+    <polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+  </svg>
+);
+const ISortDown = () => (
+  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+    <line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/>
+  </svg>
+);
+const ISortUp = () => (
+  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+    <line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/>
+  </svg>
+);
+const IRefresh = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <polyline points="23,4 23,10 17,10"/>
+    <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+  </svg>
+);
+
+
+// ── main Monitor ───────────────────────────────────────────────────────────────
+export default function Monitor() {
+  const [streams,  setStreams]  = useState([]);
+  const [loading,  setLoading]  = useState(true);
+  const [error,    setError]    = useState(null);
+  const [search,   setSearch]   = useState('');
+  const [sortDir,  setSortDir]  = useState('desc');
+  const [liveSet,  setLiveSet]  = useState(new Set());
+  const [expanded, setExpanded] = useState(null);
   const mountedRef = useRef(true);
 
-  const fetchStreams = useCallback(async (isFirstLoad = false) => {
-    if (isFirstLoad) setLoading(true);
+  const fetchStreams = useCallback(async (first = false) => {
+    if (first) setLoading(true);
     try {
       const res = await fetch('/api/monitor/streams');
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       if (!mountedRef.current) return;
-
       const raw  = Array.isArray(data) ? data : (data.streams ?? []);
       const list = raw.map(s => ({
         ...s,
         _id: s._id ?? s.id ?? s.streamId ?? s.identifier ?? String(Math.random()),
       }));
-
-      setStreams(prev => {
-        const activeIds = new Set(list.map(s => s._id));
-        const filtered = prev.filter(s => activeIds.has(s._id));
-        const existingIds = new Set(filtered.map(s => s._id));
-        const added = list.filter(s => !existingIds.has(s._id));
-        return [...filtered, ...added].map(s => {
-          const updated = list.find(u => u._id === s._id);
-          return updated ? { ...s, ...updated } : s;
-        });
+      setStreams(list);
+      setLiveSet(prev => {
+        const ids = new Set(list.map(s => s._id));
+        const next = new Set([...prev].filter(id => ids.has(id)));
+        return next.size === prev.size ? prev : next;
       });
-
-      setWatching(prev => {
-        const activeIds = new Set(list.map(s => s._id));
-        const next = { ...prev };
-        Object.keys(next).forEach(id => { if (!activeIds.has(id)) delete next[id]; });
-        return next;
-      });
-
-      setLastRefresh(new Date());
       setError(null);
     } catch (e) {
       if (mountedRef.current) setError(e.message);
     } finally {
-      if (isFirstLoad && mountedRef.current) setLoading(false);
+      if (first && mountedRef.current) setLoading(false);
     }
   }, []);
 
@@ -322,141 +373,151 @@ export default function Monitor() {
     mountedRef.current = true;
     fetchStreams(true);
     const id = setInterval(() => fetchStreams(false), STREAMS_POLL);
-    return () => {
-      mountedRef.current = false;
-      clearInterval(id);
-    };
+    return () => { mountedRef.current = false; clearInterval(id); };
   }, [fetchStreams]);
 
-  function startWatch(stream) {
-    setWatching(prev => ({ ...prev, [stream._id]: stream }));
-    setView('live');
-  }
-
-  function stopWatch(id) {
-    setWatching(prev => {
-      const n = { ...prev };
-      delete n[id];
+  function toggleLive(id) {
+    setLiveSet(prev => {
+      const n = new Set(prev);
+      n.has(id) ? n.delete(id) : n.add(id);
       return n;
     });
   }
 
-  const watchingList  = Object.values(watching);
-  const watchingCount = watchingList.length;
+  const filtered = streams
+    .filter(s => !search || streamName(s).toLowerCase().includes(search.toLowerCase()))
+    .sort((a, b) => {
+      const da = a.duration ?? a.timeOnline ?? 0;
+      const db = b.duration ?? b.timeOnline ?? 0;
+      return sortDir === 'desc' ? db - da : da - db;
+    });
+
+  const liveCount = liveSet.size;
 
   return (
-    <div className="section active mn-section">
+    <div className="mnl-root section active">
 
-      <div className="mn-toolbar">
-        <div className="mn-toolbar-left">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" style={{ color: 'var(--red)', flexShrink: 0 }}>
-            <rect x="2" y="3" width="20" height="14" rx="2"/><polyline points="8,21 12,17 16,21"/>
-          </svg>
-          <span className="mn-toolbar-title">Monitor de Cámaras</span>
-          {!loading && !error && (
-            <span className="mn-stream-count">{streams.length} streams</span>
-          )}
-        </div>
-
-        <div className="mn-toolbar-right">
-          {lastRefresh && (
-            <span className="mn-last-refresh">
-              ↻ {lastRefresh.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-            </span>
-          )}
-          {watchingCount > 0 && (
-            <>
-              <button
-                className={`mn-view-btn${view === 'grid' ? ' active' : ''}`}
-                onClick={() => setView('grid')}
-              >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
-                  <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
-                </svg>
-                Streams
-              </button>
-              <button
-                className={`mn-view-btn${view === 'live' ? ' active' : ''}`}
-                onClick={() => setView('live')}
-              >
-                <span className="mn-live-dot-sm" style={{ marginRight: 4 }} />
-                En Vivo ({watchingCount})
-              </button>
-            </>
-          )}
-          <button className="btns mn-refresh-btn" onClick={() => fetchStreams(false)} title="Actualizar">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <polyline points="23,4 23,10 17,10"/>
-              <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+      {/* ── left sidebar ───────────────────────────────────────── */}
+      <aside className="mnl-sb">
+        <div className="mnl-sb-top">
+          <div className="mnl-sb-title-row">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" style={{ flexShrink: 0 }}>
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
             </svg>
-          </button>
-        </div>
-      </div>
-
-      <div className="mn-body">
-
-        {loading && (
-          <div className="mn-center">
-            <span className="spinner" style={{ width: 18, height: 18 }} />
-            <span style={{ color: 'var(--text3)', fontSize: 13 }}>Cargando streams…</span>
+            <span className="mnl-sb-title">Jugadores</span>
+            <span className="mnl-sb-count">{streams.length}</span>
+            <button
+              className="mnl-sort-btn"
+              title={sortDir === 'desc' ? 'Mayor a menor' : 'Menor a mayor'}
+              onClick={() => setSortDir(d => d === 'desc' ? 'asc' : 'desc')}
+            >
+              {sortDir === 'desc' ? <ISortDown /> : <ISortUp />}
+            </button>
           </div>
-        )}
 
-        {!loading && error && (
-          <div className="mn-center">
-            <div className="alert al-r" style={{ maxWidth: 420 }}>
-              <div className="al-icon">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
-                  <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-                </svg>
-              </div>
-              <div><strong>Error:</strong> {error}</div>
+          <div className="mnl-sb-search">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ flexShrink: 0, opacity: .4 }}>
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input
+              className="mnl-search-input"
+              placeholder="Buscar por nombre…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+            {search && <button className="mnl-search-clear" onClick={() => setSearch('')}>✕</button>}
+          </div>
+
+          <div className="mnl-sb-btns">
+            <button className="mnl-sel-btn" onClick={() => setLiveSet(new Set(filtered.map(s => s._id)))}>Todos</button>
+            <button className="mnl-sel-btn" onClick={() => setLiveSet(new Set())}>Ninguno</button>
+          </div>
+        </div>
+
+        <div className="mnl-sb-list">
+          {loading && (
+            <div className="mnl-sb-center">
+              <span className="spinner" style={{ width: 15, height: 15 }} />
+            </div>
+          )}
+          {!loading && error && (
+            <div className="mnl-sb-center" style={{ color: 'var(--red)', fontSize: 12 }}>{error}</div>
+          )}
+          {!loading && !error && filtered.length === 0 && (
+            <div className="mnl-sb-center" style={{ color: 'var(--text3)', fontSize: 12 }}>Sin resultados</div>
+          )}
+          {!loading && !error && filtered.map(s => (
+            <PlayerRow
+              key={s._id}
+              stream={s}
+              isLive={liveSet.has(s._id)}
+              onToggle={toggleLive}
+            />
+          ))}
+        </div>
+      </aside>
+
+      {/* ── right content ──────────────────────────────────────── */}
+      <div className="mnl-content">
+        <div className="mnl-head">
+          <div>
+            <div className="mnl-head-title">Monitor del Servidor</div>
+            <div className="mnl-head-sub">
+              Vigilancia en vivo · {liveCount} visible · {streams.length} total
             </div>
           </div>
-        )}
-
-        {!loading && !error && streams.length === 0 && (
-          <div className="mn-center">
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.25" style={{ color: 'var(--text3)' }}>
-              <rect x="2" y="3" width="20" height="14" rx="2"/><polyline points="8,21 12,17 16,21"/>
-              <line x1="8" y1="10" x2="16" y2="10"/>
-            </svg>
-            <p style={{ color: 'var(--text2)', fontSize: 14, margin: '8px 0 4px' }}>Sin streams activos</p>
-            <span style={{ color: 'var(--text3)', fontSize: 12 }}>Se actualizará automáticamente cada 12 segundos</span>
+          <div className="mnl-head-right">
+            {liveCount > 0 && (
+              <span className="mnl-live-pill"><span className="mnc-dot" />LIVE</span>
+            )}
+            <button className="btns mnl-refresh-btn" onClick={() => fetchStreams(false)}>
+              <IRefresh /> Refrescar
+            </button>
           </div>
-        )}
+        </div>
 
-        {!loading && !error && streams.length > 0 && view === 'grid' && (
-          <div className="mn-grid">
-            {streams.map(s => (
-              <StreamCard
-                key={s._id}
-                stream={s}
-                isWatching={!!watching[s._id]}
-                onWatch={startWatch}
-                onStop={stopWatch}
-              />
-            ))}
-          </div>
-        )}
-
-        {view === 'live' && watchingCount > 0 && (
-          <div className="mn-live-grid">
-            {watchingList.map(s => (
-              <LiveViewer key={s._id} stream={s} onClose={() => stopWatch(s._id)} />
-            ))}
-          </div>
-        )}
-
-        {view === 'live' && watchingCount === 0 && (
-          <div className="mn-center">
-            <p style={{ color: 'var(--text3)', fontSize: 13 }}>
-              No hay cámaras en vivo. Haz clic en "Ver en vivo" en algún stream.
-            </p>
-          </div>
-        )}
+        <div className="mnl-grid">
+          {loading && Array.from({ length: 12 }).map((_, i) => (
+            <div key={i} className="mnc-card mnc-skeleton" />
+          ))}
+          {!loading && error && (
+            <div className="mnl-full-center">
+              <div className="alert al-r" style={{ maxWidth: 380 }}>
+                <div className="al-icon">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
+                    <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                  </svg>
+                </div>
+                <div><strong>Error:</strong> {error}</div>
+              </div>
+            </div>
+          )}
+          {!loading && !error && filtered.length === 0 && (
+            <div className="mnl-full-center" style={{ color: 'var(--text3)', fontSize: 13 }}>
+              Sin streams activos
+            </div>
+          )}
+          {!loading && !error && filtered.map(s => (
+            <CameraCard
+              key={s._id}
+              stream={s}
+              isLive={liveSet.has(s._id)}
+              onToggleLive={toggleLive}
+              onExpand={setExpanded}
+            />
+          ))}
+        </div>
       </div>
+
+      {/* ── expanded modal ─────────────────────────────────────── */}
+      {expanded && (
+        <ExpandedModal
+          stream={expanded}
+          isLive={liveSet.has(expanded._id)}
+          onClose={() => setExpanded(null)}
+        />
+      )}
     </div>
   );
 }
