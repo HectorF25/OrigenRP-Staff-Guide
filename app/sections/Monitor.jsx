@@ -71,7 +71,12 @@ function LiveVideo({ streamId }) {
         sb.mode = 'sequence';
         sb.addEventListener('updateend', () => {
           tryFlush();
-          if (!played && sb.buffered.length) { played = true; video.play().catch(() => {}); }
+          if (!played && sb.buffered.length) {
+            played = true;
+            video.play()
+              .then(() => { if (!closed) setStatus('live'); })
+              .catch(() => {});
+          }
         });
         tryFlush();
       } catch { setStatus('error'); }
@@ -81,7 +86,8 @@ function LiveVideo({ streamId }) {
     msUrl = URL.createObjectURL(ms);
     video.src = msUrl;
     ms.addEventListener('sourceopen', maybeInit);
-    video.addEventListener('playing', () => setStatus('live'));
+    video.addEventListener('playing',    () => { if (!closed) setStatus('live'); });
+    video.addEventListener('timeupdate', () => { if (!closed) setStatus('live'); });
     let firstFrame = false;
     const watchdog = setTimeout(() => {
       if (!firstFrame && !closed) setStatus('error');
@@ -127,7 +133,6 @@ function LiveVideo({ streamId }) {
       <video
         ref={videoRef}
         className="mnv-video"
-        style={{ opacity: status === 'live' ? 1 : 0 }}
         muted playsInline autoPlay
       />
       {status !== 'live' && (

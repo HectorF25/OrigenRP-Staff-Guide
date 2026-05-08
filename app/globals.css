@@ -2535,12 +2535,14 @@ body.gate-shown { overflow: hidden; }
 .mnv-status {
   position: absolute;
   inset: 0;
+  z-index: 2;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 7px;
   font-size: 11px;
   color: rgba(255,255,255,.6);
+  background: rgba(0,0,0,.72);
 }
 .mnv-fps {
   position: absolute;
