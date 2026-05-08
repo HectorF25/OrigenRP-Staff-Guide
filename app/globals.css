@@ -2684,3 +2684,44 @@ body.gate-shown { overflow: hidden; }
   .mnm-body { flex-direction: column; }
   .mnm-logs { width: 100%; min-width: unset; border-left: none; border-top: 1px solid var(--border); }
 }
+
+/* ── Monitor v2 card size fix ──────────────────────────────────────────────── */
+/* aspect-ratio alone fails inside flex/grid scroll containers; use padding-top */
+
+.mnl-grid {
+  align-items: start !important; /* don't stretch cards to row height */
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)) !important;
+}
+
+/* Card becomes the aspect-ratio container via padding-top trick */
+.mnc-card {
+  position: relative !important;
+  width: 100% !important;
+  padding-top: 56.25% !important; /* 9/16 = 56.25% → 16:9 */
+  height: 0 !important;           /* height comes from padding */
+  overflow: hidden !important;
+}
+
+/* Media fills the card absolutely */
+.mnc-media {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  aspect-ratio: unset !important;
+}
+
+/* Skeleton: same approach */
+.mnc-skeleton {
+  padding-top: 56.25% !important;
+  height: 0 !important;
+  aspect-ratio: unset !important;
+}
+
+/* Make sure the live video wrapper also fills fully */
+.mnc-media .mnv-wrap {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+}
