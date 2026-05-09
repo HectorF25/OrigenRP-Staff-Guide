@@ -1,6 +1,6 @@
 import {
   Sparkles, Terminal, Bot, PackageOpen, Scale, Users, Building2,
-  Landmark, Shield, BookOpen, Target, Layers, FileText, Activity, Cctv
+  Landmark, Shield, BookOpen, Target, Layers, FileText, Activity, Cctv, Gavel
 } from 'lucide-react';
 import { SERVER_ICON } from '@/lib/constants';
 
@@ -15,6 +15,7 @@ const NAV_GROUPS = [
     { i: 4,  icon: Scale,       label: 'Sanciones' },
     { i: 5,  icon: Users,       label: 'OC / Mafias ×2' },
     { i: 6,  icon: Building2,   label: 'Ilegales' },
+    { i: 15, icon: Gavel,       label: 'Sanciones Ilegales' },
     { i: 7,  icon: Landmark,    label: 'Robos' },
     { i: 8,  icon: Shield,      label: 'Norma Staff' },
     { i: 12, icon: FileText,    label: 'Normativa Completa' }

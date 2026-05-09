@@ -1,8 +1,9 @@
 import {
   Ban, Crosshair, Banknote, MapPin, Swords, Target,
-  AlertTriangle, Zap, Shirt, Package, PhoneOff, X, Check, Clock
+  AlertTriangle, Zap, Shirt, Package, PhoneOff, X, Check, Clock,
+  ShieldAlert, Users
 } from 'lucide-react';
-import { NIVEL_ARMAS, PRECIOS_ARMAS } from '@/lib/sections-data';
+import { NIVEL_ARMAS, PRECIOS_ARMAS, OC_FALTAS_GROUPS } from '@/lib/sections-data';
 
 const PROHIBICIONES = [
   'Abusar de bugs/mecánicas del servidor — disolución inmediata de la OC, inapelable.',
@@ -18,6 +19,8 @@ const PROHIBICIONES = [
   'Disparar desde moto en movimiento. Solo ruedas y con moto completamente parada.',
   'No water / no bush / no window / tracer disparos / láser armas / miras externas / kill effect que revele posición.'
 ];
+
+const FALTA_COLOR = { lev: 'pg', med: 'py', gra: 'pr' };
 
 export default function Ilegales() {
   return (
@@ -78,6 +81,12 @@ export default function Ilegales() {
             ))}
           </tbody>
         </table>
+        <div className="alert al-r" style={{ marginTop: 10, marginBottom: 0 }}>
+          <span className="al-icon"><AlertTriangle size={14} /></span>
+          <span>
+            Saltarse los precios = <strong>warn de organización</strong>. Reincidencia grave = posible desmantelamiento.
+          </span>
+        </div>
       </div>
 
       <div className="card cl-red" style={{ marginBottom: 8 }}>
@@ -107,16 +116,43 @@ export default function Ilegales() {
         <div className="nrow nrow-x"><span className="ni"><X size={13} /></span><span>Prohibido secuestrar a usuarios del bando contrario durante el conflicto.</span></div>
       </div>
 
+      <div className="card cl-yellow" style={{ marginBottom: 8 }}>
+        <div className="card-header">
+          <div className="card-icon ci-yellow"><ShieldAlert size={15} /></div>
+          <div className="card-title ct-yellow">Sistema de faltas OC — Warns</div>
+        </div>
+        <div className="alert al-y" style={{ marginBottom: 10 }}>
+          <span className="al-icon"><Users size={14} /></span>
+          <span>
+            Solo afecta a miembros <strong>nuevos</strong> en el sistema ilegal. Faltas individuales = jail (no warn).
+            Cada <strong>3 faltas sin rectificar</strong> = warn a la organización. Miembros antiguos van directo a warn.
+          </span>
+        </div>
+        {OC_FALTAS_GROUPS.map(g => (
+          <div key={g.key} style={{ marginBottom: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5 }}>
+              <span className={`pill ${g.pillClass}`}>{g.label}</span>
+            </div>
+            {g.items.map((item, i) => (
+              <div key={i} className="nrow nrow-info" style={{ paddingLeft: 8 }}>
+                <span className="ni" style={{ opacity: .5 }}>·</span>
+                <span>{item}</span>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+
       <div className="card cl-green">
         <div className="card-header">
           <div className="card-icon ci-green"><Target size={15} /></div>
           <div className="card-title ct-green">Niveles — requisitos para subir</div>
         </div>
         <p style={{ fontSize: 12, color: 'var(--text2)', lineHeight: 1.7 }}>
-          <strong>MAFIA Lvl1→Lvl2:</strong> $5M Mafia Madre, cupos llenos, 4k cocaína/heroína/maría, Misión 1, búnker 600 armas, 3 yates · 6 joyerías · 150 SNS · 120 Vintage · 100 9mm.<br />
-          <strong>MAFIA Lvl2→Lvl3:</strong> $10M, cupos llenos, 8k cocaína/heroína/maría, búnker 1500 armas, 6 yates · 12 joyerías · 2 bancos centrales · 250 SNS · 230 Vintage · 200 9mm · 80 Mini-SMG.<br />
-          <strong>BANDA Lvl1→Lvl2:</strong> $5M, cupos llenos, 4k cocaína/maría, lab maxeado, 20 badulaques · 8 fleekas · 4 joyerías · 70 SNS · 60 Vintage · 50 9mm · 30 chalecos.<br />
-          <strong>BANDA Lvl2→Lvl3:</strong> $10M, cupos llenos, 8k cocaína/maría, lab maxeado, 40 badulaques · 16 fleekas · 10 joyerías · 180 SNS · 150 Vintage · 120 9mm · 40 chalecos.
+          <strong>MAFIA Lvl1→Lvl2:</strong> $5M Mafia Madre · cupos llenos · 4k cocaína / heroína / maría · Misión 1 · búnker 600 armas · 3 yates · 6 joyerías · 150 SNS · 120 Vintage · 100 9mm.<br />
+          <strong>MAFIA Lvl2→Lvl3:</strong> $10M · cupos llenos · 8k cocaína / heroína / maría · búnker 1500 armas · 6 yates · 12 joyerías · 2 bancos centrales · 250 SNS · 230 Vintage · 200 9mm · 80 Mini-SMG.<br />
+          <strong>BANDA Lvl1→Lvl2:</strong> $5M · cupos llenos · 4k cocaína / maría · lab maxeado · 20 badulaques · 8 fleekas · 4 joyerías · 70 SNS · 60 Vintage · 50 9mm · 30 chalecos.<br />
+          <strong>BANDA Lvl2→Lvl3:</strong> $10M · cupos llenos · 8k cocaína / maría · lab maxeado · 40 badulaques · 16 fleekas · 10 joyerías · 180 SNS · 150 Vintage · 120 9mm · 40 chalecos.
         </p>
       </div>
     </div>

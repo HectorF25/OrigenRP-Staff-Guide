@@ -1,6 +1,5 @@
 'use client';
 
-// Panel principal — orquesta auth, sidebar, topbar y sección activa.
 import { useEffect, useState } from 'react';
 
 import { useAuth } from './hooks/useAuth';
@@ -23,6 +22,7 @@ import Flashcards from './sections/Flashcards';
 import NormativaCompleta from './sections/NormativaCompleta';
 import LogsMonitor from './sections/LogsMonitor';
 import Monitor from './sections/Monitor';
+import SancionesIlegales from './sections/SancionesIlegales';
 
 const SECTIONS = [
   ConsultorIA,
@@ -40,6 +40,7 @@ const SECTIONS = [
   NormativaCompleta,
   LogsMonitor,
   Monitor,
+  SancionesIlegales,
 ];
 
 export default function Page() {
