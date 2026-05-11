@@ -38,6 +38,13 @@ INSTRUCCIONES:
 5. Si pertenece a OC/Mafia, el jail se DUPLICA.
 6. Explica el razonamiento basándote en la normativa.
 7. Sé conciso y claro. Responde en español.
+8. RESPONDE a lo ultimo indicando al usuario que debe hacer ejemplo /ban o /jail para ejecutar la sanción, o que no es sancionable si ese es el caso, dale el comando exacto a ejecutar.
+
+COMANDOS:
+- /jail [ID] [MINUTOS] [RAZÓN]
+- /ban [ID] [RAZÓN]
+- /unban [ID]
+- /jailof [ID] [MINUTOS] [RAZÓN]
 
 SITUACIÓN REPORTADA:
 ${situacion.trim()}`;
