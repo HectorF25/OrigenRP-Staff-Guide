@@ -41,10 +41,10 @@ INSTRUCCIONES:
 8. RESPONDE a lo ultimo indicando al usuario que debe hacer ejemplo /ban o /jail para ejecutar la sanción, o que no es sancionable si ese es el caso, dale el comando exacto a ejecutar.
 
 COMANDOS:
-- /jail [ID] [MINUTOS] [RAZÓN]
+- /jail [ID] [MINUTOS] "[RAZÓN]"
 - /ban [ID] [RAZÓN]
 - /unban [ID]
-- /jailof [ID] [MINUTOS] [RAZÓN]
+- /jailof [ID] [MINUTOS] "[RAZÓN]"
 
 SITUACIÓN REPORTADA:
 ${situacion.trim()}`;
