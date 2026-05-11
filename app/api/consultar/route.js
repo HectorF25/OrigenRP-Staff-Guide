@@ -45,7 +45,7 @@ COMANDOS:
 - /jail [ID] [MINUTOS] "[RAZÓN]"
 - /ban [ID] "[RAZÓN]"
 - /unban [ID]
-- /jailof [ID] [MINUTOS] "[RAZÓN]"
+- /jailof [char1 identifier] [MINUTOS] "[RAZÓN]"
 
 SITUACIÓN REPORTADA:
 ${situacion.trim()}`;
