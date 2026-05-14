@@ -52,11 +52,30 @@ function LiveVideo({ streamId }) {
     const video = videoRef.current;
     if (!video) return;
     let sb = null, msUrl = null, queue = [], closed = false, sbReady = false;
+    let framesAppended = 0, playAttempts = 0, playInterval = null;
+
+    function tryPlay() {
+      if (closed) return;
+      playAttempts++;
+      video.play().catch(() => {});
+    }
+
+    function startPlayLoop() {
+      if (playInterval || closed) return;
+      tryPlay();
+      playInterval = setInterval(() => {
+        if (closed || video.readyState >= 3) { clearInterval(playInterval); return; }
+        tryPlay();
+      }, 800);
+    }
 
     function tryFlush() {
       if (closed || !sb || sb.updating || !queue.length) return;
-      try { sb.appendBuffer(queue.shift()); }
-      catch (e) {
+      try {
+        sb.appendBuffer(queue.shift());
+        framesAppended++;
+        if (framesAppended === 2) startPlayLoop();
+      } catch (e) {
         if (e.name === 'QuotaExceededError' && sb.buffered.length)
           sb.remove(sb.buffered.start(0), sb.buffered.start(0) + 5);
       }
@@ -70,6 +89,7 @@ function LiveVideo({ streamId }) {
       try {
         sb = ms.addSourceBuffer(codec);
         sb.mode = 'sequence';
+        try { ms.duration = Infinity; } catch {}
         sb.addEventListener('updateend', tryFlush);
         tryFlush();
       } catch { setStatus('error'); }
@@ -77,19 +97,29 @@ function LiveVideo({ streamId }) {
 
     const ms = new MediaSource();
     msUrl = URL.createObjectURL(ms);
+    video.preload = 'auto';
     video.src = msUrl;
-    ms.addEventListener('sourceopen', maybeInit);
-
-    video.addEventListener('canplay', () => {
-      if (!closed) video.play().catch(() => {});
+    ms.addEventListener('sourceopen', () => {
+      try { ms.duration = Infinity; } catch {}
+      maybeInit();
     });
-    video.addEventListener('playing',    () => { if (!closed) setStatus('live'); });
+
+    video.addEventListener('canplay',        () => { if (!closed) startPlayLoop(); });
+    video.addEventListener('canplaythrough', () => { if (!closed) startPlayLoop(); });
+    video.addEventListener('playing', () => {
+      if (closed) return;
+      clearInterval(playInterval);
+      playInterval = null;
+      setStatus('live');
+    });
     video.addEventListener('timeupdate', () => { if (!closed) setStatus('live'); });
+    video.addEventListener('stalled',  () => { if (!closed && framesAppended > 10) startPlayLoop(); });
+    video.addEventListener('waiting',  () => { if (!closed && framesAppended > 10) startPlayLoop(); });
 
     let firstFrame = false;
     const watchdog = setTimeout(() => {
       if (!firstFrame && !closed) setStatus('error');
-    }, 10000);
+    }, 12000);
 
     const es = new EventSource(`/api/monitor/live/${streamId}`);
     es.addEventListener('frame', evt => {
@@ -116,6 +146,7 @@ function LiveVideo({ streamId }) {
 
     return () => {
       closed = true;
+      clearInterval(playInterval);
       clearTimeout(watchdog);
       es.close();
       try { if (ms.readyState === 'open') ms.endOfStream(); } catch {}

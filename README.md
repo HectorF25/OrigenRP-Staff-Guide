@@ -2,6 +2,18 @@
 
 Panel de staff para el servidor FiveM OrigenRP con consultor de sanciones IA.
 
+---
+
+## Autor
+
+Desarrollado íntegramente por **Hector Jesid Florez Macias** ([@hectorflorez25](mailto:hectorflorez25@gmail.com)).
+
+Este proyecto fue diseñado, programado y mantenido por el autor desde cero.
+Si usas o adaptas este código, se agradece mantener esta atribución.
+Consulta el archivo [LICENSE](./LICENSE) para más detalles.
+
+---
+
 ## Estructura del proyecto
 
 ```
