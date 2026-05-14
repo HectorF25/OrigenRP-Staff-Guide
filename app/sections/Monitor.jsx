@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-const STREAMS_POLL = 12_000;
-const THUMB_POLL   =  3_000;
+const STREAMS_POLL  = 60_000;
+const THUMB_POLL    = 20_000;
+const MAX_LIVE      = 3;
 
 function fmtDuration(s) {
   if (!s && s !== 0) return '—';
@@ -42,10 +43,13 @@ function detectCodec(buf) {
   return 'video/webm; codecs="vp9"';
 }
 
-function LiveVideo({ streamId }) {
+const LIVE_AUTO_STOP_MS = 8 * 60 * 1000;
+
+function LiveVideo({ streamId, onAutoStop }) {
   const videoRef      = useRef(null);
   const [status, setStatus] = useState('connecting');
   const [fps, setFps]       = useState(0);
+  const [remaining, setRemaining] = useState(LIVE_AUTO_STOP_MS);
   const fcRef = useRef(0), tsRef = useRef(Date.now());
 
   useEffect(() => {
@@ -136,16 +140,26 @@ function LiveVideo({ streamId }) {
       if (es.readyState === EventSource.CLOSED) setStatus('closed');
     };
 
+    const autoStop = setTimeout(() => {
+      if (!closed && onAutoStop) onAutoStop(streamId);
+    }, LIVE_AUTO_STOP_MS);
+
+    const countdown = setInterval(() => {
+      setRemaining(r => Math.max(0, r - 10_000));
+    }, 10_000);
+
     return () => {
       closed = true;
       clearTimeout(playTimer);
       clearTimeout(watchdog);
+      clearTimeout(autoStop);
+      clearInterval(countdown);
       es.close();
       try { if (ms.readyState === 'open') ms.endOfStream(); } catch {}
       URL.revokeObjectURL(msUrl);
       video.removeAttribute('src'); video.load();
     };
-  }, [streamId]);
+  }, [streamId, onAutoStop]);
 
   return (
     <div className="mnv-wrap">
@@ -161,12 +175,16 @@ function LiveVideo({ streamId }) {
           {status === 'closed'     && <span>Stream cerrado</span>}
         </div>
       )}
-      {status === 'live' && <span className="mnv-fps">{fps} fps</span>}
+      {status === 'live' && (
+        <span className="mnv-fps">
+          {fps} fps · {Math.ceil(remaining / 60000)}m
+        </span>
+      )}
     </div>
   );
 }
 
-function CameraCard({ stream, isLive, onToggleLive, onExpand }) {
+function CameraCard({ stream, isLive, onToggleLive, onExpand, onAutoStop }) {
   const [hovered, setHovered] = useState(false);
   const [thumbTs, setThumbTs] = useState(Date.now());
   const timerRef = useRef(null);
@@ -189,9 +207,9 @@ function CameraCard({ stream, isLive, onToggleLive, onExpand }) {
     >
       <div className="mnc-media">
         {isLive
-          ? <LiveVideo streamId={stream._id} />
+          ? <LiveVideo streamId={stream._id} onAutoStop={onAutoStop} />
           // eslint-disable-next-line @next/next/no-img-element
-          : <img src={`/api/monitor/stream/${stream._id}/thumbnail?t=${thumbTs}`} alt={name} className="mnc-img" />}
+          : <img src={`/api/monitor/stream/${stream._id}/thumbnail?v=${Math.floor(thumbTs / THUMB_POLL)}`} alt={name} className="mnc-img" />}
 
         <div className="mnc-top">
           <span className={`mnc-badge${isLive ? ' mnc-badge-live' : ''}`}>
@@ -293,7 +311,7 @@ function ExpandedModal({ stream, isLive, onClose }) {
             {isLive
               ? <LiveVideo streamId={stream._id} />
               // eslint-disable-next-line @next/next/no-img-element
-              : <img src={`/api/monitor/stream/${stream._id}/thumbnail?t=${thumbTs}`} alt={name} style={{ width: '100%', height: '100%', objectFit: 'contain', background: '#000' }} />}
+              : <img src={`/api/monitor/stream/${stream._id}/thumbnail?v=${Math.floor(thumbTs / THUMB_POLL)}`} alt={name} style={{ width: '100%', height: '100%', objectFit: 'contain', background: '#000' }} />}
           </div>
 
           <div className="mnm-logs">
@@ -403,7 +421,15 @@ export default function Monitor() {
   function toggleLive(id) {
     setLiveSet(prev => {
       const n = new Set(prev);
-      n.has(id) ? n.delete(id) : n.add(id);
+      if (n.has(id)) {
+        n.delete(id);
+      } else {
+        if (n.size >= MAX_LIVE) {
+          const [oldest] = n;
+          n.delete(oldest);
+        }
+        n.add(id);
+      }
       return n;
     });
   }
@@ -453,7 +479,13 @@ export default function Monitor() {
           </div>
 
           <div className="mnl-sb-btns">
-            <button className="mnl-sel-btn" onClick={() => setLiveSet(new Set(filtered.map(s => s._id)))}>Todos</button>
+            <button
+              className="mnl-sel-btn"
+              title={`Máx ${MAX_LIVE} simultáneos`}
+              onClick={() => setLiveSet(new Set(filtered.slice(0, MAX_LIVE).map(s => s._id)))}
+            >
+              Top {MAX_LIVE}
+            </button>
             <button className="mnl-sel-btn" onClick={() => setLiveSet(new Set())}>Ninguno</button>
           </div>
         </div>
@@ -544,6 +576,7 @@ export default function Monitor() {
               isLive={liveSet.has(s._id)}
               onToggleLive={toggleLive}
               onExpand={setExpanded}
+              onAutoStop={toggleLive}
             />
           ))}
         </div>

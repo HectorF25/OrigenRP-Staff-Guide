@@ -42,6 +42,11 @@ async function handler(req, ctx) {
     if (ct) headers['content-type'] = ct;
   }
 
+  const isThumbnail = targetPath.includes('thumbnail');
+  const cacheHeader = isThumbnail
+    ? 'public, max-age=15, s-maxage=15, stale-while-revalidate=10'
+    : 'no-store';
+
   try {
     const res = await fetch(targetUrl, { method: req.method, headers, body });
     const contentType = res.headers.get('content-type') ?? 'application/octet-stream';
@@ -50,7 +55,7 @@ async function handler(req, ctx) {
       status: res.status,
       headers: {
         'content-type': contentType,
-        'cache-control': 'no-store',
+        'cache-control': cacheHeader,
       },
     });
   } catch (err) {
