@@ -20,8 +20,9 @@ const themeScript = `
 })();
 `;
 
-export default function RootLayout({ children }) {
-  const nonce = headers().get('x-nonce') ?? '';
+export default async function RootLayout({ children }) {
+  const hdrs = await headers();
+  const nonce = hdrs.get('x-nonce') ?? '';
 
   return (
     <html lang="es" suppressHydrationWarning>
