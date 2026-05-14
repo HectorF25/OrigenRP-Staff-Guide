@@ -52,21 +52,17 @@ function LiveVideo({ streamId }) {
     const video = videoRef.current;
     if (!video) return;
     let sb = null, msUrl = null, queue = [], closed = false, sbReady = false;
-    let framesAppended = 0, playAttempts = 0, playInterval = null;
+    let framesAppended = 0;
+    let playTimer = null;
 
-    function tryPlay() {
-      if (closed) return;
-      playAttempts++;
+    function nudgePlay() {
+      if (closed || !video.paused) return;
       video.play().catch(() => {});
-    }
-
-    function startPlayLoop() {
-      if (playInterval || closed) return;
-      tryPlay();
-      playInterval = setInterval(() => {
-        if (closed || video.readyState >= 3) { clearInterval(playInterval); return; }
-        tryPlay();
-      }, 800);
+      clearTimeout(playTimer);
+      playTimer = setTimeout(() => {
+        playTimer = null;
+        if (!closed && video.paused) nudgePlay();
+      }, 600);
     }
 
     function tryFlush() {
@@ -74,7 +70,7 @@ function LiveVideo({ streamId }) {
       try {
         sb.appendBuffer(queue.shift());
         framesAppended++;
-        if (framesAppended === 2) startPlayLoop();
+        if (framesAppended >= 2) nudgePlay();
       } catch (e) {
         if (e.name === 'QuotaExceededError' && sb.buffered.length)
           sb.remove(sb.buffered.start(0), sb.buffered.start(0) + 5);
@@ -89,7 +85,6 @@ function LiveVideo({ streamId }) {
       try {
         sb = ms.addSourceBuffer(codec);
         sb.mode = 'sequence';
-        try { ms.duration = Infinity; } catch {}
         sb.addEventListener('updateend', tryFlush);
         tryFlush();
       } catch { setStatus('error'); }
@@ -99,22 +94,19 @@ function LiveVideo({ streamId }) {
     msUrl = URL.createObjectURL(ms);
     video.preload = 'auto';
     video.src = msUrl;
-    ms.addEventListener('sourceopen', () => {
-      try { ms.duration = Infinity; } catch {}
-      maybeInit();
-    });
+    ms.addEventListener('sourceopen', maybeInit);
 
-    video.addEventListener('canplay',        () => { if (!closed) startPlayLoop(); });
-    video.addEventListener('canplaythrough', () => { if (!closed) startPlayLoop(); });
+    video.addEventListener('canplay',        () => { if (!closed) nudgePlay(); });
+    video.addEventListener('canplaythrough', () => { if (!closed) nudgePlay(); });
     video.addEventListener('playing', () => {
       if (closed) return;
-      clearInterval(playInterval);
-      playInterval = null;
+      clearTimeout(playTimer);
+      playTimer = null;
       setStatus('live');
     });
     video.addEventListener('timeupdate', () => { if (!closed) setStatus('live'); });
-    video.addEventListener('stalled',  () => { if (!closed && framesAppended > 10) startPlayLoop(); });
-    video.addEventListener('waiting',  () => { if (!closed && framesAppended > 10) startPlayLoop(); });
+    video.addEventListener('stalled', () => { if (!closed && framesAppended > 5) nudgePlay(); });
+    video.addEventListener('waiting', () => { if (!closed && framesAppended > 5) nudgePlay(); });
 
     let firstFrame = false;
     const watchdog = setTimeout(() => {
@@ -146,7 +138,7 @@ function LiveVideo({ streamId }) {
 
     return () => {
       closed = true;
-      clearInterval(playInterval);
+      clearTimeout(playTimer);
       clearTimeout(watchdog);
       es.close();
       try { if (ms.readyState === 'open') ms.endOfStream(); } catch {}
