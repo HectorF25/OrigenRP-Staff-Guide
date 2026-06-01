@@ -135,6 +135,10 @@ function FieldsGrid({ fields }) {
 }
 
 
+function stripMarkdown(str) {
+  return (str ?? '').replace(/\*+/g, '').replace(/_+/g, '').trim();
+}
+
 function extractExecutorName(embed) {
   const fields = embed?.fields ?? [];
 
@@ -142,7 +146,7 @@ function extractExecutorName(embed) {
     const fname = (field.name ?? '').toLowerCase();
     if (fname.includes('ejecut') || fname.includes('acción') || fname.includes('accion')) {
       const m = (field.value ?? '').match(/Nombre:\s*([^\n]+)/i);
-      if (m) return m[1].trim();
+      if (m) return stripMarkdown(m[1]);
     }
   }
 
@@ -154,13 +158,13 @@ function extractExecutorName(embed) {
       continue;
     }
     if (inExecutorSection) {
-      if (fname === 'nombre') return (field.value ?? '').trim();
+      if (fname === 'nombre') return stripMarkdown(field.value);
       if (fname.includes('cachea') || fname.includes('objetivo') || fname.includes('cacheado')) break;
     }
   }
 
   const first = fields.find(f => (f.name ?? '').toLowerCase() === 'nombre');
-  return first ? (first.value ?? '').trim() : null;
+  return first ? stripMarkdown(first.value) : null;
 }
 
 function DarLogRow({ log }) {
