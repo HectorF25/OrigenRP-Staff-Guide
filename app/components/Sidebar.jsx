@@ -1,12 +1,21 @@
 import {
   Sparkles, Terminal, Bot, PackageOpen, Scale, Users, Building2,
-  Landmark, Shield, BookOpen, Target, Layers, FileText, Activity, Cctv, Gavel, BarChart2, Search
+  Landmark, Shield, BookOpen, Target, Layers, FileText, Activity, Cctv, Gavel, BarChart2, Search, LayoutDashboard
 } from 'lucide-react';
 import { SERVER_ICON } from '@/lib/constants';
 
 const ILEGALES_ALLOWED_IDS  = new Set(['343822757911330817', '752975491228500019']);
 const ILEGALES_ALLOWED_ROLE = '1487429315992879114';
 const COORD_IDS             = new Set(['343822757911330817', '752975491228500019']);
+const ILEGALES_ADMIN_IDS    = new Set([
+  '659812927636897810','752057219058630676','713393949624107058','343822757911330817',
+  '748287186239094936','1310021491827408976','1395195029747929089','1032794430232592394',
+  '1217206517443461151','924496259530756117','704379432348942549','1233393359578468376',
+  '1176005329524379779','934932063977607241','761145782728261643','1171541693569454080',
+  '1105956450414633020','914490855459532861','517422162647449602','752975491228500019',
+  '740030258740330576','426166856118697997','1479936578368438283','845589598016765952',
+  '979514530721845328',
+]);
 
 function canSeeReportes(user) {
   if (!user) return false;
@@ -16,6 +25,12 @@ function canSeeReportes(user) {
 
 function canSeeReporteJugador(user) {
   return !!user && COORD_IDS.has(user.id);
+}
+
+function canSeeDashboardAdmin(user) {
+  if (!user) return false;
+  if (ILEGALES_ADMIN_IDS.has(user.id)) return true;
+  return Array.isArray(user.roles) && user.roles.includes(ILEGALES_ALLOWED_ROLE);
 }
 
 const BASE_GROUPS = [
@@ -47,8 +62,9 @@ const BASE_GROUPS = [
 
 export default function Sidebar({ page, onPick, open, user }) {
   const ilegalesItems = [];
-  if (canSeeReportes(user))        ilegalesItems.push({ i: 16, icon: BarChart2, label: 'Reportes Ilegales' });
-  if (canSeeReporteJugador(user))  ilegalesItems.push({ i: 17, icon: Search,    label: 'Reporte Jugador'   });
+  if (canSeeDashboardAdmin(user))  ilegalesItems.push({ i: 18, icon: LayoutDashboard, label: 'Mi Dashboard'       });
+  if (canSeeReportes(user))        ilegalesItems.push({ i: 16, icon: BarChart2,       label: 'Reportes Ilegales' });
+  if (canSeeReporteJugador(user))  ilegalesItems.push({ i: 17, icon: Search,          label: 'Reporte Jugador'   });
 
   const navGroups = ilegalesItems.length > 0
     ? [...BASE_GROUPS, { title: 'Ilegales', items: ilegalesItems }]

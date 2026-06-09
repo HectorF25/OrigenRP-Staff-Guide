@@ -25,6 +25,7 @@ import Monitor from './sections/Monitor';
 import SancionesIlegales from './sections/SancionesIlegales';
 import ReportesIlegales from './sections/ReportesIlegales';
 import ReporteJugador from './sections/ReporteJugador';
+import DashboardAdmin from './sections/DashboardAdmin';
 
 const SECTIONS = [
   ConsultorIA,
@@ -43,8 +44,9 @@ const SECTIONS = [
   LogsMonitor,
   Monitor,
   SancionesIlegales,
-  ReportesIlegales,  // index 16
-  ReporteJugador,    // index 17
+  ReportesIlegales,
+  ReporteJugador,
+  DashboardAdmin,
 ];
 
 export default function Page() {
@@ -76,6 +78,7 @@ export default function Page() {
     Active === ConsultorIA      ? { onSessionExpired: expireSession } :
     Active === ReportesIlegales ? { user } :
     Active === ReporteJugador   ? { user } :
+    Active === DashboardAdmin   ? { user } :
     {};
 
   return (
