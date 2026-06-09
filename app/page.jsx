@@ -23,6 +23,8 @@ import NormativaCompleta from './sections/NormativaCompleta';
 import LogsMonitor from './sections/LogsMonitor';
 import Monitor from './sections/Monitor';
 import SancionesIlegales from './sections/SancionesIlegales';
+import ReportesIlegales from './sections/ReportesIlegales';
+import ReporteJugador from './sections/ReporteJugador';
 
 const SECTIONS = [
   ConsultorIA,
@@ -41,6 +43,8 @@ const SECTIONS = [
   LogsMonitor,
   Monitor,
   SancionesIlegales,
+  ReportesIlegales,  // index 16
+  ReporteJugador,    // index 17
 ];
 
 export default function Page() {
@@ -68,7 +72,11 @@ export default function Page() {
   if (!user) return <AuthGate error={gateError} />;
 
   const Active = SECTIONS[page] || ConsultorIA;
-  const sectionProps = Active === ConsultorIA ? { onSessionExpired: expireSession } : {};
+  const sectionProps =
+    Active === ConsultorIA      ? { onSessionExpired: expireSession } :
+    Active === ReportesIlegales ? { user } :
+    Active === ReporteJugador   ? { user } :
+    {};
 
   return (
     <>
@@ -76,6 +84,7 @@ export default function Page() {
       <Sidebar
         page={page}
         open={sidebarOpen}
+        user={user}
         onPick={(i) => { setPage(i); setSidebarOpen(false); window.scrollTo(0, 0); }}
       />
       <div className="main">

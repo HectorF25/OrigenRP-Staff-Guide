@@ -1,10 +1,24 @@
 import {
   Sparkles, Terminal, Bot, PackageOpen, Scale, Users, Building2,
-  Landmark, Shield, BookOpen, Target, Layers, FileText, Activity, Cctv, Gavel
+  Landmark, Shield, BookOpen, Target, Layers, FileText, Activity, Cctv, Gavel, BarChart2, Search
 } from 'lucide-react';
 import { SERVER_ICON } from '@/lib/constants';
 
-const NAV_GROUPS = [
+const ILEGALES_ALLOWED_IDS  = new Set(['343822757911330817', '752975491228500019']);
+const ILEGALES_ALLOWED_ROLE = '1487429315992879114';
+const COORD_IDS             = new Set(['343822757911330817', '752975491228500019']);
+
+function canSeeReportes(user) {
+  if (!user) return false;
+  if (ILEGALES_ALLOWED_IDS.has(user.id)) return true;
+  return Array.isArray(user.roles) && user.roles.includes(ILEGALES_ALLOWED_ROLE);
+}
+
+function canSeeReporteJugador(user) {
+  return !!user && COORD_IDS.has(user.id);
+}
+
+const BASE_GROUPS = [
   { title: 'Inteligencia', items: [{ i: 0,  icon: Sparkles,    label: 'Consultor IA' }] },
   { title: 'Comandos',     items: [
     { i: 1,  icon: Terminal,    label: 'In-Game' },
@@ -31,7 +45,14 @@ const NAV_GROUPS = [
   ] }
 ];
 
-export default function Sidebar({ page, onPick, open }) {
+export default function Sidebar({ page, onPick, open, user }) {
+  const ilegalesItems = [];
+  if (canSeeReportes(user))        ilegalesItems.push({ i: 16, icon: BarChart2, label: 'Reportes Ilegales' });
+  if (canSeeReporteJugador(user))  ilegalesItems.push({ i: 17, icon: Search,    label: 'Reporte Jugador'   });
+
+  const navGroups = ilegalesItems.length > 0
+    ? [...BASE_GROUPS, { title: 'Ilegales', items: ilegalesItems }]
+    : BASE_GROUPS;
   return (
     <aside className={`sidebar${open ? ' open' : ''}`} id="sidebar">
       <div className="sb-head">
@@ -51,7 +72,7 @@ export default function Sidebar({ page, onPick, open }) {
         </div>
       </div>
       <nav className="nav">
-        {NAV_GROUPS.map((g, gi) => (
+        {navGroups.map((g, gi) => (
           <div key={gi}>
             <div className="nav-section">{g.title}</div>
             {g.items.map(it => {
