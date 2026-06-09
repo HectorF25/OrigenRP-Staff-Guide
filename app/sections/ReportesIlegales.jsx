@@ -414,6 +414,61 @@ function JailsTable({ jails }) {
   );
 }
 
+// Lista de las últimas sanciones (panel derecho)
+function RecentSanciones({ jails }) {
+  const items = jails.slice(0, 10);
+  return (
+    <div style={{
+      background: 'var(--surface)', border: '1px solid var(--border)',
+      borderRadius: 10, overflow: 'hidden',
+      maxHeight: 440, overflowY: 'auto',
+    }}>
+      {items.length === 0
+        ? <div style={{ padding: '24px 16px', textAlign: 'center', fontSize: 12, color: 'var(--text3)' }}>
+            Sin registros en este período
+          </div>
+        : items.map((j, i) => {
+          const player       = j.player ?? null;
+          const ident        = j.identifier ?? null;
+          return (
+            <div key={j.id} style={{
+              display: 'flex', gap: 10, padding: '10px 14px',
+              borderBottom: i < items.length - 1 ? '1px solid var(--border)' : 'none',
+              alignItems: 'flex-start',
+            }}>
+              <div style={{ paddingTop: 2, flexShrink: 0 }}>
+                <JailBadge isOnline={j.isOnline} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{
+                  fontSize: 12, fontWeight: 500, color: 'var(--text)',
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 2,
+                }}>
+                  {player
+                    ? player
+                    : ident
+                      ? <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: 'var(--text3)' }}>{ident}</span>
+                      : '—'
+                  }
+                </div>
+                {j.motivo && (
+                  <div style={{ fontSize: 11, color: 'var(--text2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {j.motivo}
+                  </div>
+                )}
+              </div>
+              <div style={{ fontSize: 10, color: 'var(--text3)', flexShrink: 0, textAlign: 'right' }}>
+                <div>{j.duracion ?? '—'}</div>
+                <div style={{ marginTop: 2 }}>{fmtTimeRelative(j.ts)}</div>
+              </div>
+            </div>
+          );
+        })
+      }
+    </div>
+  );
+}
+
 // Dashboard completo de un admin
 function AdminDashboard({ admin, jails: allJails, onBack }) {
   const [periodIdx,   setPeriodIdx]   = useState(1);
@@ -441,8 +496,8 @@ function AdminDashboard({ admin, jails: allJails, onBack }) {
   const activity = buildActivityData(jails, period.days || 30);
   const busiest  = activity.reduce((b, d) => d.count > b.count ? d : b, { count: 0, label: '—' });
 
-  const allTimeMins = allJails.reduce((s, j) => s + (j.durMins ?? 0), 0);
-  const avg30       = (allJails.filter(j => new Date(j.ts).getTime() >= Date.now() - 30 * 86400000).length / 30).toFixed(1);
+  const allTimeMins  = allJails.reduce((s, j) => s + (j.durMins ?? 0), 0);
+  const avg30        = (allJails.filter(j => new Date(j.ts).getTime() >= Date.now() - 30 * 86400000).length / 30).toFixed(1);
   const allOnlinePct = allJails.length > 0 ? Math.round((allJails.filter(j => j.isOnline).length / allJails.length) * 100) : 0;
 
   const aColor  = avatarColor(admin.name);
@@ -484,9 +539,9 @@ function AdminDashboard({ admin, jails: allJails, onBack }) {
           </div>
         </div>
 
-        {/* Botón ver registros */}
+        {/* Botón ver todos los registros */}
         <button
-          onClick={() => { setShowRecords(v => !v); }}
+          onClick={() => setShowRecords(v => !v)}
           style={{
             display: 'flex', alignItems: 'center', gap: 6,
             background: showRecords ? 'var(--red)' : 'var(--surface)',
@@ -568,9 +623,9 @@ function AdminDashboard({ admin, jails: allJails, onBack }) {
         }
       </div>
 
-      {/* ── Motivos + Desglose online/offline ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16, marginBottom: 16 }}>
-        {/* Motivos */}
+      {/* ── Motivos + Últimas sanciones ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, marginBottom: 16 }}>
+        {/* Motivos más frecuentes */}
         <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '16px 18px' }}>
           <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text2)', marginBottom: 14 }}>Motivos más frecuentes</div>
           {motivos.length === 0
@@ -579,80 +634,52 @@ function AdminDashboard({ admin, jails: allJails, onBack }) {
           }
         </div>
 
-        {/* Desglose visual + resumen histórico */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {/* Desglose online/offline del período */}
-          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '16px 18px' }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text2)', marginBottom: 14 }}>Desglose del período</div>
-            {total === 0
-              ? <div style={{ fontSize: 12, color: 'var(--text3)' }}>Sin datos</div>
-              : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  {/* Barra online */}
-                  <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text2)', marginBottom: 5 }}>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e', display: 'inline-block' }} />
-                        Online
-                      </span>
-                      <span style={{ fontWeight: 700 }}>{online} <span style={{ color: 'var(--text3)', fontWeight: 400 }}>({total > 0 ? Math.round((online/total)*100) : 0}%)</span></span>
-                    </div>
-                    <div style={{ height: 8, background: 'var(--border)', borderRadius: 999, overflow: 'hidden' }}>
-                      <div style={{ height: '100%', width: `${total > 0 ? (online/total)*100 : 0}%`, background: '#22c55e', borderRadius: 999, transition: 'width .5s' }} />
-                    </div>
-                  </div>
-                  {/* Barra offline */}
-                  <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text2)', marginBottom: 5 }}>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--text3)', display: 'inline-block' }} />
-                        Offline
-                      </span>
-                      <span style={{ fontWeight: 700 }}>{offline} <span style={{ color: 'var(--text3)', fontWeight: 400 }}>({total > 0 ? Math.round((offline/total)*100) : 0}%)</span></span>
-                    </div>
-                    <div style={{ height: 8, background: 'var(--border)', borderRadius: 999, overflow: 'hidden' }}>
-                      <div style={{ height: '100%', width: `${total > 0 ? (offline/total)*100 : 0}%`, background: 'var(--text3)', borderRadius: 999, opacity: .5, transition: 'width .5s' }} />
-                    </div>
-                  </div>
-                </div>
-              )
-            }
+        {/* Últimas 10 sanciones */}
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text2)', marginBottom: 10 }}>
+            Últimas sanciones del período
           </div>
+          <RecentSanciones jails={jails} />
+        </div>
+      </div>
 
-          {/* Resumen histórico */}
-          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '16px 18px', flex: 1 }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text2)', marginBottom: 14 }}>Resumen histórico</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-              <div>
-                <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--red)' }}>{allJails.length.toLocaleString('es')}</div>
-                <div style={{ fontSize: 11, color: 'var(--text3)' }}>jails totales</div>
-              </div>
-              <div>
-                <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--orange, #f97316)' }}>{fmtMins(allTimeMins)}</div>
-                <div style={{ fontSize: 11, color: 'var(--text3)' }}>tiempo acumulado</div>
-              </div>
-              <div>
-                <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--blue)' }}>{avg30}</div>
-                <div style={{ fontSize: 11, color: 'var(--text3)' }}>jails/día (30d)</div>
-              </div>
-              <div>
-                <div style={{ fontSize: 22, fontWeight: 800, color: '#22c55e' }}>{allOnlinePct}%</div>
-                <div style={{ fontSize: 11, color: 'var(--text3)' }}>reportes online</div>
-              </div>
-            </div>
+      {/* ── Resumen histórico (fila horizontal) ── */}
+      <div style={{
+        background: 'var(--surface)', border: '1px solid var(--border)',
+        borderRadius: 10, padding: '16px 20px', marginBottom: showRecords ? 16 : 0,
+      }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text2)', marginBottom: 14 }}>
+          Resumen histórico
+        </div>
+        <div style={{ display: 'flex', gap: 32, flexWrap: 'wrap' }}>
+          <div>
+            <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--red)' }}>{allJails.length.toLocaleString('es')}</div>
+            <div style={{ fontSize: 11, color: 'var(--text3)' }}>jails registrados</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--orange, #f97316)' }}>{fmtMins(allTimeMins)}</div>
+            <div style={{ fontSize: 11, color: 'var(--text3)' }}>tiempo total acumulado</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--blue)' }}>{avg30}</div>
+            <div style={{ fontSize: 11, color: 'var(--text3)' }}>jails/día (últ. 30d)</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 24, fontWeight: 800, color: '#22c55e' }}>{allOnlinePct}%</div>
+            <div style={{ fontSize: 11, color: 'var(--text3)' }}>reportes online</div>
           </div>
         </div>
       </div>
 
-      {/* ── Registros con paginación ── */}
+      {/* ── Todos los registros paginados (toggle) ── */}
       {showRecords && (
         <div>
           <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text2)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
             <List size={13} style={{ color: 'var(--red)' }} />
-            Registros del período
-            <span style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 400 }}>— {jails.length} en total</span>
+            Todos los registros
+            <span style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 400 }}>— {allJails.length} en total</span>
           </div>
-          <JailsTable jails={jails} />
+          <JailsTable jails={allJails} />
         </div>
       )}
     </div>
