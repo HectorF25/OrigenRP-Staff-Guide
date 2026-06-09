@@ -4,18 +4,19 @@ import { useEffect, useRef, useState } from 'react';
 import {
   ArrowLeft, BarChart2, RefreshCw, Lock,
   Users, Shield, Wifi, TrendingUp,
-  AlertTriangle, Clock, User,
+  AlertTriangle, Clock, User, ChevronLeft, ChevronRight, List,
 } from 'lucide-react';
 import { FM_PROJECT_ID, fmtTime, fmtTimeRelative } from '@/lib/fivemonitor';
 
 // ─── Configuración ────────────────────────────────────────────────────────────
-const JAIL_CH_ID   = '69d3a41db036cafed646d85a';
-const VALID_TITLES = new Set(['Items Removidos - Jail', 'Jugador Offline Encarcelado - Jail']);
-const ALLOWED_IDS  = new Set(['343822757911330817', '752975491228500019']);
-const ALLOWED_ROLE = '1487429315992879114';
-const PAGE_LIMIT   = 50;
-const BATCH        = 5;
-const WEEK_MS      = 7 * 24 * 60 * 60 * 1000;
+const JAIL_CH_ID    = '69d3a41db036cafed646d85a';
+const VALID_TITLES  = new Set(['Items Removidos - Jail', 'Jugador Offline Encarcelado - Jail']);
+const ALLOWED_IDS   = new Set(['343822757911330817', '752975491228500019']);
+const ALLOWED_ROLE  = '1487429315992879114';
+const PAGE_LIMIT    = 50;
+const BATCH         = 5;
+const WEEK_MS       = 7 * 24 * 60 * 60 * 1000;
+const JAILS_PER_PAGE = 15;
 
 const PERIODS = [
   { label: 'Hoy',         days: 1  },
@@ -53,113 +54,88 @@ const ADMINS = [
   { name: 'angel',                id: '979514530721845328'  },
 ];
 
-// Colores de avatar
-const PALETTE = [
-  '#ef4444','#3b82f6','#8b5cf6','#10b981',
-  '#f59e0b','#06b6d4','#ec4899','#6366f1',
-];
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+const PALETTE = ['#ef4444','#3b82f6','#8b5cf6','#10b981','#f59e0b','#06b6d4','#ec4899','#6366f1'];
 function avatarColor(name) {
-  const first = [...name].find(c => /\p{L}/u.test(c)) ?? 'A';
-  return PALETTE[first.toUpperCase().charCodeAt(0) % PALETTE.length];
+  const c = [...name].find(c => /\p{L}/u.test(c)) ?? 'A';
+  return PALETTE[c.toUpperCase().charCodeAt(0) % PALETTE.length];
 }
 function avatarLetter(name) {
   return ([...name].find(c => /\p{L}/u.test(c))?.toUpperCase()) ?? '?';
 }
-function activityInfo(weeklyCount) {
-  if (weeklyCount >= 10) return { label: 'Muy activo', color: '#22c55e' };
-  if (weeklyCount >= 4)  return { label: 'Activo',     color: '#f59e0b' };
-  return                        { label: 'Bajo',        color: '#f97316' };
+function activityInfo(w) {
+  if (w >= 10) return { label: 'Muy activo', color: '#22c55e' };
+  if (w >= 4)  return { label: 'Activo',     color: '#f59e0b' };
+  return              { label: 'Bajo',        color: '#f97316' };
 }
-
-// ─── Helpers de cálculo ───────────────────────────────────────────────────────
 function canAccess(user) {
   if (!user) return false;
   if (ALLOWED_IDS.has(user.id)) return true;
   return Array.isArray(user.roles) && user.roles.includes(ALLOWED_ROLE);
 }
-
 function fmtMins(mins) {
   if (!mins) return '0m';
-  const d = Math.floor(mins / 1440);
-  const h = Math.floor((mins % 1440) / 60);
-  const m = mins % 60;
+  const d = Math.floor(mins / 1440), h = Math.floor((mins % 1440) / 60), m = mins % 60;
   const p = [];
   if (d) p.push(`${d}d`);
   if (h) p.push(`${h}h`);
   if (m || !p.length) p.push(`${m}m`);
   return p.join(' ');
 }
-
-function dayKey(ts) {
-  return new Date(ts).toISOString().slice(0, 10);
+function dayKey(ts)    { return new Date(ts).toISOString().slice(0, 10); }
+function shortDay(ds)  {
+  try { return new Intl.DateTimeFormat('es', { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(ds)); }
+  catch { return ds.slice(5); }
 }
-
-function shortDay(dateStr) {
-  try {
-    return new Intl.DateTimeFormat('es', { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(dateStr));
-  } catch { return dateStr.slice(5); }
+function filterByPeriod(jails, days) {
+  if (!days) return jails;
+  const cut = Date.now() - days * 86_400_000;
+  return jails.filter(j => new Date(j.ts).getTime() >= cut);
 }
-
-function filterByPeriod(jails, periodDays) {
-  if (!periodDays) return jails;
-  const cutoff = Date.now() - periodDays * 86_400_000;
-  return jails.filter(j => new Date(j.ts).getTime() >= cutoff);
-}
-
 function buildActivityData(jails, periodDays) {
   const days = periodDays > 0 ? Math.min(periodDays, 60) : 30;
-  const result = [];
-  const now = new Date();
-  for (let i = days - 1; i >= 0; i--) {
-    const d = new Date(now);
-    d.setUTCDate(d.getUTCDate() - i);
-    const key   = d.toISOString().slice(0, 10);
-    const count = jails.filter(j => dayKey(j.ts) === key).length;
-    result.push({ key, label: shortDay(key), count });
-  }
-  return result;
+  const now  = new Date();
+  return Array.from({ length: days }, (_, i) => {
+    const d   = new Date(now);
+    d.setUTCDate(d.getUTCDate() - (days - 1 - i));
+    const key = d.toISOString().slice(0, 10);
+    return { key, label: shortDay(key), count: jails.filter(j => dayKey(j.ts) === key).length };
+  });
 }
 
-// ─── Parseo de logs ───────────────────────────────────────────────────────────
+// ─── Parse / Fetch ────────────────────────────────────────────────────────────
 function extractAdmin(text) {
   const m = (text ?? '').match(/\*\*Administrador:\*\*\s*([^\n*]+)/);
   return m ? m[1].trim() : null;
 }
-
 function parseLog(log) {
   const embed = log.metadata?.embeds?.[0];
   if (!embed || !VALID_TITLES.has(embed.title)) return null;
-  const desc = embed.description ?? log.message ?? '';
+  const desc  = embed.description ?? log.message ?? '';
   const field = (key) => {
     const esc = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const m   = desc.match(new RegExp(`\\*\\*${esc}:\\*\\*\\s*([^\\n]+)`));
     return m ? m[1].trim() : null;
   };
   const durStr  = field('Duración');
-  const durMins = durStr ? (parseInt(durStr.replace(/[^0-9]/g, '')) || 0) : 0;
   return {
     id:         log._id,
-    title:      embed.title,
     adminName:  extractAdmin(desc),
     player:     field('Jugador encarcelado'),
     identifier: field('Identifier encarcelado'),
     motivo:     field('Motivo'),
     duracion:   durStr,
-    durMins,
+    durMins:    durStr ? (parseInt(durStr.replace(/[^0-9]/g, '')) || 0) : 0,
     isOnline:   embed.title === 'Items Removidos - Jail',
     ts:         log.timestamp ?? log.createdAt,
   };
 }
-
-// ─── Fetching ─────────────────────────────────────────────────────────────────
 async function fetchAdminJails(adminName, signal) {
-  const seen  = new Set();
-  const jails = [];
+  const seen = new Set(), jails = [];
   let page = 1, totalPages = 1;
   while (page <= totalPages) {
     if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
-    const url =
-      `/api/fm/v1/projects/${FM_PROJECT_ID}/logs/search` +
+    const url = `/api/fm/v1/projects/${FM_PROJECT_ID}/logs/search` +
       `?q=${encodeURIComponent(adminName)}&limit=${PAGE_LIMIT}&page=${page}&cId=${JAIL_CH_ID}`;
     const res  = await fetch(url, { signal });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -168,38 +144,32 @@ async function fetchAdminJails(adminName, signal) {
     for (const log of data.logs ?? []) {
       if (seen.has(log._id)) continue;
       seen.add(log._id);
-      const parsed = parseLog(log);
-      if (!parsed?.adminName) continue;
-      if (parsed.adminName.toLowerCase() !== adminName.toLowerCase()) continue;
-      jails.push(parsed);
+      const p = parseLog(log);
+      if (!p?.adminName || p.adminName.toLowerCase() !== adminName.toLowerCase()) continue;
+      jails.push(p);
     }
     page++;
     if (page <= totalPages) await new Promise(r => setTimeout(r, 100));
   }
   return jails;
 }
-
 async function loadAllInBatches(admins, onUpdate, signal) {
   for (let i = 0; i < admins.length; i += BATCH) {
     if (signal?.aborted) break;
-    const batch = admins.slice(i, i + BATCH);
     await Promise.allSettled(
-      batch.map(async (admin) => {
+      admins.slice(i, i + BATCH).map(async (admin) => {
         try {
           const jails = await fetchAdminJails(admin.name, signal);
-          if (!signal?.aborted) onUpdate(admin.name, { status: 'done', jails, error: null });
+          if (!signal?.aborted) onUpdate(admin.name, { status: 'done', jails });
         } catch (e) {
-          if (signal?.aborted) return;
-          onUpdate(admin.name, { status: 'error', jails: [], error: e.message });
+          if (!signal?.aborted) onUpdate(admin.name, { status: 'error', jails: [], error: e.message });
         }
       })
     );
   }
 }
 
-// ─── Componentes UI ───────────────────────────────────────────────────────────
-
-// Stat card para cabecera global
+// ─── Componentes globales ─────────────────────────────────────────────────────
 function GlobalStatCard({ icon: Icon, value, label, color = 'var(--red)', loading }) {
   return (
     <div style={{
@@ -208,10 +178,7 @@ function GlobalStatCard({ icon: Icon, value, label, color = 'var(--red)', loadin
       borderRadius: 10, padding: '14px 16px',
       display: 'flex', alignItems: 'center', gap: 12,
     }}>
-      <div style={{
-        width: 36, height: 36, borderRadius: 8, flexShrink: 0,
-        background: color + '18', display: 'flex', alignItems: 'center', justifyContent: 'center',
-      }}>
+      <div style={{ width: 36, height: 36, borderRadius: 8, flexShrink: 0, background: color + '18', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <Icon size={16} style={{ color }} />
       </div>
       <div style={{ minWidth: 0 }}>
@@ -225,7 +192,7 @@ function GlobalStatCard({ icon: Icon, value, label, color = 'var(--red)', loadin
   );
 }
 
-// Stat card para el dashboard de admin
+// ─── Componentes del dashboard de admin ──────────────────────────────────────
 function DashStatCard({ icon, label, value, sub, accent }) {
   return (
     <div style={{
@@ -234,22 +201,19 @@ function DashStatCard({ icon, label, value, sub, accent }) {
       borderTop: `3px solid ${accent ?? 'var(--border)'}`,
       display: 'flex', flexDirection: 'column', gap: 5,
     }}>
-      <div style={{ fontSize: 11, color: 'var(--text3)', display: 'flex', alignItems: 'center', gap: 5 }}>
-        {icon}{label}
-      </div>
+      <div style={{ fontSize: 11, color: 'var(--text3)', display: 'flex', alignItems: 'center', gap: 5 }}>{icon}{label}</div>
       <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--text)', lineHeight: 1 }}>{value}</div>
       {sub && <div style={{ fontSize: 11, color: 'var(--text3)' }}>{sub}</div>}
     </div>
   );
 }
 
-// Gráfico de barras de actividad diaria
 function ActivityChart({ data }) {
   const max        = Math.max(...data.map(d => d.count), 1);
   const showLabels = data.length <= 14;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 80, padding: '0 4px' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 80 }}>
         {data.map(d => (
           <div key={d.key} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, minWidth: 0 }}>
             {d.count > 0 && data.length <= 20 && (
@@ -259,24 +223,20 @@ function ActivityChart({ data }) {
               title={`${d.label}: ${d.count} jail${d.count !== 1 ? 's' : ''}`}
               style={{
                 width: '100%',
-                height: `${Math.max((d.count / max) * 60, d.count > 0 ? 4 : 2)}px`,
+                height: `${Math.max((d.count / max) * 68, d.count > 0 ? 5 : 2)}px`,
                 background: d.count > 0 ? 'var(--red)' : 'var(--surface2)',
                 borderRadius: '3px 3px 0 0',
                 opacity: d.count > 0 ? .85 : .3,
                 transition: 'height .4s',
-                minHeight: 2,
               }}
             />
           </div>
         ))}
       </div>
       {showLabels && (
-        <div style={{ display: 'flex', gap: 3, padding: '0 4px' }}>
+        <div style={{ display: 'flex', gap: 3 }}>
           {data.map(d => (
-            <div key={d.key} style={{
-              flex: 1, fontSize: 9, color: 'var(--text3)',
-              textAlign: 'center', overflow: 'hidden', minWidth: 0,
-            }}>
+            <div key={d.key} style={{ flex: 1, fontSize: 9, color: 'var(--text3)', textAlign: 'center', overflow: 'hidden', minWidth: 0 }}>
               {d.label}
             </div>
           ))}
@@ -286,31 +246,21 @@ function ActivityChart({ data }) {
   );
 }
 
-// Barra de motivo
 function MotivoBar({ label, count, maxCount }) {
   const pct = maxCount > 0 ? (count / maxCount) * 100 : 0;
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 7 }}>
-      <div style={{
-        flex: 1, fontSize: 11, color: 'var(--text2)',
-        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-      }} title={label}>{label}</div>
-      <div style={{
-        width: 90, height: 14, background: 'var(--surface2)',
-        borderRadius: 3, overflow: 'hidden', flexShrink: 0, position: 'relative',
-      }}>
-        <div style={{
-          position: 'absolute', inset: 0, right: 'auto',
-          width: `${pct}%`, background: 'var(--red)',
-          borderRadius: 3, opacity: .7, transition: 'width .5s',
-        }} />
+      <div style={{ flex: 1, fontSize: 11, color: 'var(--text2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={label}>
+        {label}
+      </div>
+      <div style={{ width: 90, height: 14, background: 'var(--surface2)', borderRadius: 3, overflow: 'hidden', flexShrink: 0, position: 'relative' }}>
+        <div style={{ position: 'absolute', inset: 0, right: 'auto', width: `${pct}%`, background: 'var(--red)', borderRadius: 3, opacity: .7, transition: 'width .5s' }} />
       </div>
       <div style={{ fontSize: 11, color: 'var(--text3)', width: 20, textAlign: 'right', flexShrink: 0 }}>{count}</div>
     </div>
   );
 }
 
-// Badge online/offline (detalle)
 function JailBadge({ isOnline }) {
   return (
     <span style={{
@@ -325,54 +275,149 @@ function JailBadge({ isOnline }) {
   );
 }
 
-// Lista de jails recientes
-function RecentList({ jails, showAll }) {
-  const items = showAll ? jails : jails.slice(0, 12);
+// Tabla de registros con paginación
+function JailsTable({ jails }) {
+  const [page, setPage] = useState(0);
+  const totalPages = Math.ceil(jails.length / JAILS_PER_PAGE);
+  const slice = jails.slice(page * JAILS_PER_PAGE, (page + 1) * JAILS_PER_PAGE);
+
+  // Reset al cambiar el listado (cambio de período)
+  useEffect(() => { setPage(0); }, [jails.length]);
+
+  if (jails.length === 0) {
+    return (
+      <div style={{
+        background: 'var(--surface)', border: '1px solid var(--border)',
+        borderRadius: 10, padding: '28px 16px', textAlign: 'center',
+        fontSize: 12, color: 'var(--text3)',
+      }}>
+        Sin registros en este período
+      </div>
+    );
+  }
+
   return (
-    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
-      {items.length === 0
-        ? <div style={{ padding: '24px 16px', textAlign: 'center', fontSize: 12, color: 'var(--text3)' }}>
-            Sin registros en este período
-          </div>
-        : items.map((j, i) => (
-          <div key={j.id} style={{
-            display: 'flex', gap: 10, padding: '9px 14px',
-            borderBottom: i < items.length - 1 ? '1px solid var(--border)' : 'none',
-            alignItems: 'flex-start',
-          }}>
-            <div style={{ paddingTop: 1, flexShrink: 0 }}><JailBadge isOnline={j.isOnline} /></div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{
-                fontSize: 12, fontWeight: 500, color: 'var(--text)',
-                marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-              }}>
-                {j.player ?? (
-                  <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: 'var(--text3)' }}>
-                    {j.identifier}
-                  </span>
-                ) ?? '—'}
+    <div>
+      {/* Tabla */}
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden', marginBottom: 10 }}>
+        {/* Cabecera tabla */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: '70px 1fr 1fr 64px 72px',
+          padding: '8px 14px',
+          borderBottom: '1px solid var(--border)',
+          background: 'var(--surface2)',
+          fontSize: 10, fontWeight: 700, letterSpacing: '.4px',
+          textTransform: 'uppercase', color: 'var(--text3)',
+          gap: 10,
+        }}>
+          <div>Tipo</div>
+          <div>Jugador</div>
+          <div>Motivo</div>
+          <div style={{ textAlign: 'right' }}>Duración</div>
+          <div style={{ textAlign: 'right' }}>Hace</div>
+        </div>
+
+        {/* Filas */}
+        {slice.map((j, i) => {
+          const player = j.player ?? null;
+          const ident  = j.identifier ?? null;
+          return (
+            <div
+              key={j.id}
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '70px 1fr 1fr 64px 72px',
+                padding: '9px 14px',
+                borderBottom: i < slice.length - 1 ? '1px solid var(--border)' : 'none',
+                alignItems: 'center',
+                gap: 10,
+                transition: 'background .1s',
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+            >
+              <div><JailBadge isOnline={j.isOnline} /></div>
+
+              <div style={{ minWidth: 0 }}>
+                {player
+                  ? <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{player}</div>
+                  : ident
+                    ? <div style={{ fontSize: 10, fontFamily: 'JetBrains Mono, monospace', color: 'var(--text3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ident}</div>
+                    : <span style={{ color: 'var(--text3)', fontSize: 11 }}>—</span>
+                }
               </div>
-              {j.motivo && (
-                <div style={{ fontSize: 11, color: 'var(--text2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {j.motivo}
-                </div>
-              )}
+
+              <div style={{ fontSize: 11, color: 'var(--text2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {j.motivo ?? <span style={{ color: 'var(--text3)' }}>—</span>}
+              </div>
+
+              <div style={{ fontSize: 11, color: 'var(--text3)', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                {j.duracion ?? '—'}
+              </div>
+
+              <div style={{ fontSize: 10, color: 'var(--text3)', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                {fmtTimeRelative(j.ts)}
+              </div>
             </div>
-            <div style={{ fontSize: 10, color: 'var(--text3)', flexShrink: 0, textAlign: 'right' }}>
-              <div>{j.duracion ?? '—'}</div>
-              <div style={{ marginTop: 1 }}>{fmtTimeRelative(j.ts)}</div>
-            </div>
+          );
+        })}
+      </div>
+
+      {/* Paginación */}
+      {totalPages > 1 && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '2px 0' }}>
+          <button
+            onClick={() => setPage(p => Math.max(0, p - 1))}
+            disabled={page === 0}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 4,
+              background: 'var(--surface)', border: '1px solid var(--border)',
+              borderRadius: 6, padding: '5px 10px', cursor: page === 0 ? 'default' : 'pointer',
+              fontSize: 11, color: page === 0 ? 'var(--text3)' : 'var(--text2)',
+              opacity: page === 0 ? .45 : 1, transition: 'border-color .15s',
+            }}
+            onMouseEnter={e => { if (page > 0) e.currentTarget.style.borderColor = 'var(--border2)'; }}
+            onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
+          >
+            <ChevronLeft size={12} /> Anterior
+          </button>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: 11, color: 'var(--text3)' }}>
+              Página <strong style={{ color: 'var(--text2)' }}>{page + 1}</strong> de {totalPages}
+            </span>
+            <span style={{ fontSize: 10, color: 'var(--text3)' }}>
+              ({jails.length} registros)
+            </span>
           </div>
-        ))
-      }
+
+          <button
+            onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
+            disabled={page >= totalPages - 1}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 4,
+              background: 'var(--surface)', border: '1px solid var(--border)',
+              borderRadius: 6, padding: '5px 10px',
+              cursor: page >= totalPages - 1 ? 'default' : 'pointer',
+              fontSize: 11, color: page >= totalPages - 1 ? 'var(--text3)' : 'var(--text2)',
+              opacity: page >= totalPages - 1 ? .45 : 1, transition: 'border-color .15s',
+            }}
+            onMouseEnter={e => { if (page < totalPages - 1) e.currentTarget.style.borderColor = 'var(--border2)'; }}
+            onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
+          >
+            Siguiente <ChevronRight size={12} />
+          </button>
+        </div>
+      )}
     </div>
   );
 }
 
 // Dashboard completo de un admin
 function AdminDashboard({ admin, jails: allJails, onBack }) {
-  const [periodIdx, setPeriodIdx] = useState(1);
-  const [showAll,   setShowAll]   = useState(false);
+  const [periodIdx,   setPeriodIdx]   = useState(1);
+  const [showRecords, setShowRecords] = useState(false);
 
   const period = PERIODS[periodIdx];
   const jails  = filterByPeriod(allJails, period.days);
@@ -398,6 +443,7 @@ function AdminDashboard({ admin, jails: allJails, onBack }) {
 
   const allTimeMins = allJails.reduce((s, j) => s + (j.durMins ?? 0), 0);
   const avg30       = (allJails.filter(j => new Date(j.ts).getTime() >= Date.now() - 30 * 86400000).length / 30).toFixed(1);
+  const allOnlinePct = allJails.length > 0 ? Math.round((allJails.filter(j => j.isOnline).length / allJails.length) * 100) : 0;
 
   const aColor  = avatarColor(admin.name);
   const aLetter = avatarLetter(admin.name);
@@ -405,7 +451,7 @@ function AdminDashboard({ admin, jails: allJails, onBack }) {
   return (
     <div className="section active">
 
-      {/* Cabecera */}
+      {/* ── Cabecera ── */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
         <button
           onClick={onBack}
@@ -413,8 +459,7 @@ function AdminDashboard({ admin, jails: allJails, onBack }) {
             display: 'flex', alignItems: 'center', gap: 6,
             background: 'var(--surface2)', border: '1px solid var(--border)',
             borderRadius: 6, padding: '6px 12px', cursor: 'pointer',
-            fontSize: 12, color: 'var(--text2)', flexShrink: 0,
-            transition: 'border-color .15s',
+            fontSize: 12, color: 'var(--text2)', flexShrink: 0, transition: 'border-color .15s',
           }}
           onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--border2)'}
           onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
@@ -435,64 +480,80 @@ function AdminDashboard({ admin, jails: allJails, onBack }) {
           <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>{admin.name}</div>
           <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>
             {allJails.length.toLocaleString('es')} jails en total
+            {allJails[0] && <> · activo {fmtTimeRelative(allJails[0].ts)}</>}
           </div>
         </div>
+
+        {/* Botón ver registros */}
+        <button
+          onClick={() => { setShowRecords(v => !v); }}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            background: showRecords ? 'var(--red)' : 'var(--surface)',
+            border: `1px solid ${showRecords ? 'var(--red)' : 'var(--border)'}`,
+            borderRadius: 6, padding: '6px 14px', cursor: 'pointer',
+            fontSize: 12, color: showRecords ? '#fff' : 'var(--text2)',
+            fontWeight: showRecords ? 600 : 400,
+            transition: 'all .15s', flexShrink: 0,
+          }}
+          onMouseEnter={e => { if (!showRecords) e.currentTarget.style.borderColor = 'var(--border2)'; }}
+          onMouseLeave={e => { if (!showRecords) e.currentTarget.style.borderColor = 'var(--border)'; }}
+        >
+          <List size={13} />
+          {showRecords ? 'Ocultar registros' : 'Ver registros'}
+        </button>
       </div>
 
-      {/* Selector de período */}
+      {/* ── Período ── */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 18, flexWrap: 'wrap' }}>
         {PERIODS.map((p, i) => (
           <button
             key={i}
             className={`btns${periodIdx === i ? ' active' : ''}`}
             style={{ fontSize: 11, padding: '5px 12px' }}
-            onClick={() => { setPeriodIdx(i); setShowAll(false); }}
+            onClick={() => { setPeriodIdx(i); setShowRecords(false); }}
           >
             {p.label}
           </button>
         ))}
       </div>
 
-      {/* Stat cards */}
+      {/* ── Stat cards ── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 10, marginBottom: 16 }}>
         <DashStatCard
-          icon={<AlertTriangle size={11} />}
-          label="Total jails"
+          icon={<AlertTriangle size={11} />} label="Total jails"
           value={total}
           sub={period.days ? `En ${period.label.toLowerCase()}` : 'Sin filtro'}
           accent="var(--red)"
         />
         <DashStatCard
-          icon={<TrendingUp size={11} />}
-          label="Online"
+          icon={<TrendingUp size={11} />} label="Online"
           value={online}
           sub={total > 0 ? `${Math.round((online / total) * 100)}% del total` : '—'}
           accent="#22c55e"
         />
         <DashStatCard
-          icon={<User size={11} />}
-          label="Offline"
+          icon={<User size={11} />} label="Offline"
           value={offline}
           sub={total > 0 ? `${Math.round((offline / total) * 100)}% del total` : '—'}
           accent="var(--text3)"
         />
         <DashStatCard
-          icon={<Clock size={11} />}
-          label="Tiempo total"
+          icon={<Clock size={11} />} label="Tiempo total"
           value={fmtMins(totalMins)}
           sub={`${totalMins.toLocaleString('es')} min`}
           accent="var(--orange, #f97316)"
         />
       </div>
 
-      {/* Gráfico de actividad */}
+      {/* ── Actividad diaria ── */}
       <div style={{
         background: 'var(--surface)', border: '1px solid var(--border)',
         borderRadius: 10, padding: '16px 18px', marginBottom: 16,
       }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 14, gap: 10, flexWrap: 'wrap' }}>
           <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text2)' }}>Actividad diaria</div>
-          <div style={{ fontSize: 11, color: 'var(--text3)', marginLeft: 'auto' }}>
+          <div style={{ fontSize: 11, color: 'var(--text3)' }}>
             {period.days > 0 ? `Últimos ${period.days} días` : 'Últimos 30 días'}
             {busiest.count > 0 && (
               <> · Día pico: <strong style={{ color: 'var(--text2)' }}>{busiest.label}</strong> ({busiest.count})</>
@@ -507,74 +568,93 @@ function AdminDashboard({ admin, jails: allJails, onBack }) {
         }
       </div>
 
-      {/* Motivos + jails recientes */}
+      {/* ── Motivos + Desglose online/offline ── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16, marginBottom: 16 }}>
+        {/* Motivos */}
         <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '16px 18px' }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text2)', marginBottom: 14 }}>
-            Motivos más frecuentes
-          </div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text2)', marginBottom: 14 }}>Motivos más frecuentes</div>
           {motivos.length === 0
             ? <div style={{ fontSize: 12, color: 'var(--text3)' }}>Sin datos en este período</div>
             : motivos.map(m => <MotivoBar key={m.label} label={m.label} count={m.count} maxCount={maxMot} />)
           }
         </div>
 
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text2)' }}>
-              Últimas sanciones del período
-            </div>
-            {jails.length > 12 && (
-              <button
-                onClick={() => setShowAll(v => !v)}
-                style={{
-                  background: 'none', border: 'none', cursor: 'pointer',
-                  fontSize: 11, color: 'var(--red)', padding: 0,
-                }}
-              >
-                {showAll ? 'Ver menos' : `Ver todos (${jails.length})`}
-              </button>
-            )}
+        {/* Desglose visual + resumen histórico */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {/* Desglose online/offline del período */}
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '16px 18px' }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text2)', marginBottom: 14 }}>Desglose del período</div>
+            {total === 0
+              ? <div style={{ fontSize: 12, color: 'var(--text3)' }}>Sin datos</div>
+              : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {/* Barra online */}
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text2)', marginBottom: 5 }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e', display: 'inline-block' }} />
+                        Online
+                      </span>
+                      <span style={{ fontWeight: 700 }}>{online} <span style={{ color: 'var(--text3)', fontWeight: 400 }}>({total > 0 ? Math.round((online/total)*100) : 0}%)</span></span>
+                    </div>
+                    <div style={{ height: 8, background: 'var(--border)', borderRadius: 999, overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: `${total > 0 ? (online/total)*100 : 0}%`, background: '#22c55e', borderRadius: 999, transition: 'width .5s' }} />
+                    </div>
+                  </div>
+                  {/* Barra offline */}
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text2)', marginBottom: 5 }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--text3)', display: 'inline-block' }} />
+                        Offline
+                      </span>
+                      <span style={{ fontWeight: 700 }}>{offline} <span style={{ color: 'var(--text3)', fontWeight: 400 }}>({total > 0 ? Math.round((offline/total)*100) : 0}%)</span></span>
+                    </div>
+                    <div style={{ height: 8, background: 'var(--border)', borderRadius: 999, overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: `${total > 0 ? (offline/total)*100 : 0}%`, background: 'var(--text3)', borderRadius: 999, opacity: .5, transition: 'width .5s' }} />
+                    </div>
+                  </div>
+                </div>
+              )
+            }
           </div>
-          <RecentList jails={jails} showAll={showAll} />
+
+          {/* Resumen histórico */}
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '16px 18px', flex: 1 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text2)', marginBottom: 14 }}>Resumen histórico</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <div>
+                <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--red)' }}>{allJails.length.toLocaleString('es')}</div>
+                <div style={{ fontSize: 11, color: 'var(--text3)' }}>jails totales</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--orange, #f97316)' }}>{fmtMins(allTimeMins)}</div>
+                <div style={{ fontSize: 11, color: 'var(--text3)' }}>tiempo acumulado</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--blue)' }}>{avg30}</div>
+                <div style={{ fontSize: 11, color: 'var(--text3)' }}>jails/día (30d)</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 22, fontWeight: 800, color: '#22c55e' }}>{allOnlinePct}%</div>
+                <div style={{ fontSize: 11, color: 'var(--text3)' }}>reportes online</div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Resumen histórico */}
-      <div style={{
-        background: 'var(--surface)', border: '1px solid var(--border)',
-        borderRadius: 10, padding: '16px 18px',
-      }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text2)', marginBottom: 14 }}>
-          Resumen histórico
+      {/* ── Registros con paginación ── */}
+      {showRecords && (
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text2)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <List size={13} style={{ color: 'var(--red)' }} />
+            Registros del período
+            <span style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 400 }}>— {jails.length} en total</span>
+          </div>
+          <JailsTable jails={jails} />
         </div>
-        <div style={{ display: 'flex', gap: 28, flexWrap: 'wrap' }}>
-          <div>
-            <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--red)' }}>
-              {allJails.length.toLocaleString('es')}
-            </div>
-            <div style={{ fontSize: 11, color: 'var(--text3)' }}>jails registrados</div>
-          </div>
-          <div>
-            <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--orange, #f97316)' }}>
-              {fmtMins(allTimeMins)}
-            </div>
-            <div style={{ fontSize: 11, color: 'var(--text3)' }}>tiempo total acumulado</div>
-          </div>
-          <div>
-            <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--blue)' }}>
-              {avg30}
-            </div>
-            <div style={{ fontSize: 11, color: 'var(--text3)' }}>jails/día (últ. 30d)</div>
-          </div>
-          <div>
-            <div style={{ fontSize: 24, fontWeight: 800, color: '#22c55e' }}>
-              {allJails.length > 0 ? `${Math.round((allJails.filter(j => j.isOnline).length / allJails.length) * 100)}%` : '—'}
-            </div>
-            <div style={{ fontSize: 11, color: 'var(--text3)' }}>reportes online</div>
-          </div>
-        </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -582,18 +662,18 @@ function AdminDashboard({ admin, jails: allJails, onBack }) {
 // ─── AdminCard (overview) ─────────────────────────────────────────────────────
 function AdminCard({ admin, data, rank, maxWeekly, onSelect }) {
   const [hovered, setHovered] = useState(false);
-  const { status, jails = [], error } = data;
+  const { status, jails = [] } = data;
   const loading = status === 'loading';
   const done    = status === 'done';
 
-  const now        = Date.now();
-  const total      = jails.length;
-  const weekly     = jails.filter(j => new Date(j.ts).getTime() >= now - WEEK_MS).length;
-  const online     = jails.filter(j => j.isOnline).length;
-  const offline    = jails.filter(j => !j.isOnline).length;
-  const onlinePct  = total > 0 ? Math.round((online / total) * 100) : 0;
-  const weeklyPct  = maxWeekly > 0 ? Math.round((weekly / maxWeekly) * 100) : 0;
-  const lastJail   = jails[0];
+  const now       = Date.now();
+  const total     = jails.length;
+  const weekly    = jails.filter(j => new Date(j.ts).getTime() >= now - WEEK_MS).length;
+  const online    = jails.filter(j => j.isOnline).length;
+  const offline   = jails.filter(j => !j.isOnline).length;
+  const onlinePct = total > 0 ? Math.round((online / total) * 100) : 0;
+  const weeklyPct = maxWeekly > 0 ? Math.round((weekly / maxWeekly) * 100) : 0;
+  const lastJail  = jails[0];
 
   const { label: actLabel, color: actColor } = activityInfo(weekly);
   const aColor  = avatarColor(admin.name);
@@ -623,18 +703,11 @@ function AdminCard({ admin, data, rank, maxWeekly, onSelect }) {
           {aLetter}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{
-            fontSize: 12, fontWeight: 700, color: 'var(--text)',
-            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-          }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {admin.name}
           </div>
         </div>
-        <div style={{
-          fontSize: 10, fontWeight: 700, color: 'var(--text3)',
-          background: 'var(--surface2)', border: '1px solid var(--border)',
-          borderRadius: 5, padding: '2px 6px', flexShrink: 0,
-        }}>
+        <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 5, padding: '2px 6px', flexShrink: 0 }}>
           #{rank}
         </div>
       </div>
@@ -648,9 +721,7 @@ function AdminCard({ admin, data, rank, maxWeekly, onSelect }) {
       ) : (
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, minHeight: 40 }}>
           <span style={{ fontSize: 36, fontWeight: 800, color: 'var(--text)', lineHeight: 1 }}>{total}</span>
-          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.8px', color: 'var(--text3)', textTransform: 'uppercase' }}>
-            JAILS
-          </span>
+          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.8px', color: 'var(--text3)', textTransform: 'uppercase' }}>JAILS</span>
         </div>
       )}
 
@@ -661,34 +732,20 @@ function AdminCard({ admin, data, rank, maxWeekly, onSelect }) {
             <div style={{ width: 7, height: 7, borderRadius: '50%', background: actColor, flexShrink: 0 }} />
             <span style={{ fontSize: 11, color: 'var(--text2)', fontWeight: 500 }}>{actLabel}</span>
           </div>
-          <span style={{
-            fontSize: 10, fontWeight: 600, color: actColor,
-            background: actColor + '18', border: `1px solid ${actColor}30`,
-            borderRadius: 4, padding: '2px 7px',
-          }}>
+          <span style={{ fontSize: 10, fontWeight: 600, color: actColor, background: actColor + '18', border: `1px solid ${actColor}30`, borderRadius: 4, padding: '2px 7px' }}>
             +{weekly} esta semana
           </span>
         </div>
       )}
 
-      {/* Barras de progreso */}
+      {/* Barras */}
       {done && total > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <div style={{ height: 5, background: 'var(--border)', borderRadius: 999, overflow: 'hidden' }}>
-            <div style={{
-              height: '100%', borderRadius: 999,
-              width: `${onlinePct}%`,
-              background: 'linear-gradient(90deg, #22c55e, #16a34a)',
-              transition: 'width .4s',
-            }} />
+            <div style={{ height: '100%', borderRadius: 999, width: `${onlinePct}%`, background: 'linear-gradient(90deg, #22c55e, #16a34a)', transition: 'width .4s' }} />
           </div>
           <div style={{ height: 3, background: 'var(--border)', borderRadius: 999, overflow: 'hidden' }}>
-            <div style={{
-              height: '100%', borderRadius: 999,
-              width: `${weeklyPct}%`,
-              background: actColor,
-              transition: 'width .4s',
-            }} />
+            <div style={{ height: '100%', borderRadius: 999, width: `${weeklyPct}%`, background: actColor, transition: 'width .4s' }} />
           </div>
         </div>
       )}
@@ -696,28 +753,17 @@ function AdminCard({ admin, data, rank, maxWeekly, onSelect }) {
       {/* Badges online/offline */}
       {done && total > 0 && (
         <div style={{ display: 'flex', gap: 6 }}>
-          <div style={{
-            flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
-            padding: '4px 6px', borderRadius: 6,
-            background: 'rgba(34,197,94,.10)', border: '1px solid rgba(34,197,94,.22)',
-          }}>
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '4px 6px', borderRadius: 6, background: 'rgba(34,197,94,.10)', border: '1px solid rgba(34,197,94,.22)' }}>
             <Wifi size={10} style={{ color: '#22c55e', flexShrink: 0 }} />
             <span style={{ fontSize: 11, fontWeight: 600, color: '#22c55e' }}>{online}</span>
             <span style={{ fontSize: 10, color: '#22c55e', opacity: .7 }}>online</span>
           </div>
-          <div style={{
-            flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
-            padding: '4px 6px', borderRadius: 6,
-            background: 'var(--surface2)', border: '1px solid var(--border)',
-          }}>
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '4px 6px', borderRadius: 6, background: 'var(--surface2)', border: '1px solid var(--border)' }}>
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ color: 'var(--text3)', flexShrink: 0 }}>
               <line x1="1" y1="1" x2="23" y2="23"/>
-              <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55"/>
-              <path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39"/>
-              <path d="M10.71 5.05A16 16 0 0 1 22.56 9"/>
-              <path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88"/>
-              <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>
-              <line x1="12" y1="20" x2="12.01" y2="20"/>
+              <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55"/><path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39"/>
+              <path d="M10.71 5.05A16 16 0 0 1 22.56 9"/><path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88"/>
+              <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/>
             </svg>
             <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text2)' }}>{offline}</span>
             <span style={{ fontSize: 10, color: 'var(--text3)' }}>offline</span>
@@ -727,20 +773,15 @@ function AdminCard({ admin, data, rank, maxWeekly, onSelect }) {
 
       {/* Footer */}
       {done && total > 0 && (
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
           <span style={{ fontSize: 10, color: 'var(--text3)' }}>{onlinePct}% reportes online</span>
           {lastJail && <span style={{ fontSize: 10, color: 'var(--text3)' }}>activo {fmtTimeRelative(lastJail.ts)}</span>}
         </div>
       )}
 
-      {done && total === 0 && (
-        <div style={{ fontSize: 11, color: 'var(--text3)', textAlign: 'center', padding: '6px 0' }}>Sin registros</div>
-      )}
-      {status === 'error' && (
-        <div style={{ fontSize: 11, color: 'var(--red)', opacity: .8 }}>Error al cargar</div>
-      )}
+      {done && total === 0 && <div style={{ fontSize: 11, color: 'var(--text3)', textAlign: 'center', padding: '6px 0' }}>Sin registros</div>}
+      {status === 'error' && <div style={{ fontSize: 11, color: 'var(--red)', opacity: .8 }}>Error al cargar</div>}
 
-      {/* Botón */}
       {done && total > 0 && (
         <button
           onClick={() => onSelect(admin)}
@@ -777,7 +818,6 @@ export default function ReportesIlegales({ user }) {
   function updateAdmin(name, patch) {
     setAdminData(prev => ({ ...prev, [name]: patch }));
   }
-
   function startLoad() {
     if (abortRef.current) abortRef.current.abort();
     const ctrl = new AbortController();
@@ -800,15 +840,10 @@ export default function ReportesIlegales({ user }) {
   if (!hasAccess) {
     return (
       <div className="section active">
-        <div style={{
-          display: 'flex', flexDirection: 'column', alignItems: 'center',
-          justifyContent: 'center', padding: '80px 20px', gap: 14, color: 'var(--text3)',
-        }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '80px 20px', gap: 14, color: 'var(--text3)' }}>
           <Lock size={36} style={{ opacity: .35 }} />
           <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text2)' }}>Acceso restringido</div>
-          <div style={{ fontSize: 13, textAlign: 'center', maxWidth: 300 }}>
-            Solo el equipo de encargados de ilegales puede ver esta sección.
-          </div>
+          <div style={{ fontSize: 13, textAlign: 'center', maxWidth: 300 }}>Solo el equipo de encargados de ilegales puede ver esta sección.</div>
         </div>
       </div>
     );
@@ -830,7 +865,7 @@ export default function ReportesIlegales({ user }) {
   // ── Vista overview ─────────────────────────────────────────────────────────
   const loadedCount = Object.values(adminData).filter(d => d.status === 'done' || d.status === 'error').length;
   const allDone     = loadedCount === ADMINS.length;
-  const loading     = loadedCount === 0;
+  const isLoading   = loadedCount === 0;
   const now         = Date.now();
 
   const allJails    = Object.values(adminData).flatMap(d => d.jails ?? []);
@@ -843,8 +878,7 @@ export default function ReportesIlegales({ user }) {
     : [...ADMINS];
 
   const sorted = [...filtered].sort((a, b) => {
-    const da = adminData[a.name];
-    const db = adminData[b.name];
+    const da = adminData[a.name], db = adminData[b.name];
     if (sortBy === 'count') return (db.jails?.length ?? 0) - (da.jails?.length ?? 0);
     if (sortBy === 'activity') {
       const wa = (da.jails ?? []).filter(j => new Date(j.ts).getTime() >= now - WEEK_MS).length;
@@ -854,16 +888,12 @@ export default function ReportesIlegales({ user }) {
     return a.name.localeCompare(b.name, 'es', { sensitivity: 'base' });
   });
 
-  const maxWeekly = Math.max(
-    1,
-    ...Object.values(adminData).map(d =>
-      (d.jails ?? []).filter(j => new Date(j.ts).getTime() >= now - WEEK_MS).length
-    )
-  );
+  const maxWeekly = Math.max(1, ...Object.values(adminData).map(d =>
+    (d.jails ?? []).filter(j => new Date(j.ts).getTime() >= now - WEEK_MS).length
+  ));
 
   return (
     <div className="section active">
-      {/* Cabecera */}
       <div className="pg-header" style={{ marginBottom: 16 }}>
         <div>
           <div className="pg-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -873,18 +903,12 @@ export default function ReportesIlegales({ user }) {
           <div className="pg-sub">
             {allDone
               ? `${ADMINS.length} administradores · ${totalJails.toLocaleString('es')} jails en total · ${totalWeekly} esta semana`
-              : `Cargando… ${loadedCount} / ${ADMINS.length}`
-            }
+              : `Cargando… ${loadedCount} / ${ADMINS.length}`}
           </div>
         </div>
         <button
           onClick={startLoad}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 6,
-            background: 'var(--surface)', border: '1px solid var(--border)',
-            borderRadius: 6, padding: '6px 12px', cursor: 'pointer',
-            fontSize: 12, color: 'var(--text2)', transition: 'border-color .15s',
-          }}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '6px 12px', cursor: 'pointer', fontSize: 12, color: 'var(--text2)', transition: 'border-color .15s' }}
           onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--border2)'}
           onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
         >
@@ -892,68 +916,38 @@ export default function ReportesIlegales({ user }) {
         </button>
       </div>
 
-      {/* Barra de carga */}
       {!allDone && (
         <div style={{ marginBottom: 16 }}>
           <div style={{ height: 3, background: 'var(--border)', borderRadius: 999, overflow: 'hidden' }}>
-            <div style={{
-              height: '100%', borderRadius: 999, background: 'var(--red)',
-              width: `${Math.round((loadedCount / ADMINS.length) * 100)}%`,
-              transition: 'width .3s',
-            }} />
+            <div style={{ height: '100%', borderRadius: 999, background: 'var(--red)', width: `${Math.round((loadedCount / ADMINS.length) * 100)}%`, transition: 'width .3s' }} />
           </div>
         </div>
       )}
 
-      {/* Stats globales */}
       <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
-        <GlobalStatCard icon={Users}      value={ADMINS.length}                   label="en el equipo"        color="var(--blue)"   loading={false}   />
-        <GlobalStatCard icon={Shield}     value={totalJails.toLocaleString('es')} label="histórico acumulado" color="var(--red)"    loading={loading} />
-        <GlobalStatCard icon={Wifi}       value={totalOnline.toLocaleString('es')}label="reportes online"     color="#22c55e"       loading={loading} />
-        <GlobalStatCard icon={TrendingUp} value={`+${totalWeekly}`}               label="actividad reciente"  color="var(--orange, #f97316)" loading={loading} />
+        <GlobalStatCard icon={Users}      value={ADMINS.length}                    label="en el equipo"        color="var(--blue)"            loading={false}     />
+        <GlobalStatCard icon={Shield}     value={totalJails.toLocaleString('es')}  label="histórico acumulado" color="var(--red)"             loading={isLoading} />
+        <GlobalStatCard icon={Wifi}       value={totalOnline.toLocaleString('es')} label="reportes online"     color="#22c55e"                loading={isLoading} />
+        <GlobalStatCard icon={TrendingUp} value={`+${totalWeekly}`}                label="actividad reciente"  color="var(--orange, #f97316)" loading={isLoading} />
       </div>
 
-      {/* Controles */}
       <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
         <div style={{ position: 'relative', flex: '1 1 200px' }}>
-          <svg
-            style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', opacity: .4, pointerEvents: 'none' }}
-            width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.75"
-          >
+          <svg style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', opacity: .4, pointerEvents: 'none' }} width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.75">
             <circle cx="7" cy="7" r="5" /><line x1="11" y1="11" x2="15" y2="15" />
           </svg>
-          <input
-            className="fm-search-input"
-            placeholder="Filtrar administrador…"
-            value={filter}
-            onChange={e => setFilter(e.target.value)}
-            style={{ paddingLeft: 30, width: '100%', boxSizing: 'border-box' }}
-          />
+          <input className="fm-search-input" placeholder="Filtrar administrador…" value={filter} onChange={e => setFilter(e.target.value)} style={{ paddingLeft: 30, width: '100%', boxSizing: 'border-box' }} />
         </div>
         <div style={{ display: 'flex', gap: 4 }}>
-          {[
-            { key: 'count',    label: '↓ Jails'  },
-            { key: 'activity', label: 'Actividad' },
-            { key: 'name',     label: 'A – Z'     },
-          ].map(opt => (
-            <button
-              key={opt.key}
-              className={`btns${sortBy === opt.key ? ' active' : ''}`}
-              style={{ fontSize: 11, padding: '5px 10px' }}
-              onClick={() => setSortBy(opt.key)}
-            >
+          {[{ key: 'count', label: '↓ Jails' }, { key: 'activity', label: 'Actividad' }, { key: 'name', label: 'A – Z' }].map(opt => (
+            <button key={opt.key} className={`btns${sortBy === opt.key ? ' active' : ''}`} style={{ fontSize: 11, padding: '5px 10px' }} onClick={() => setSortBy(opt.key)}>
               {opt.label}
             </button>
           ))}
         </div>
       </div>
 
-      {/* Grid auto-fill */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))',
-        gap: 12,
-      }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: 12 }}>
         {sorted.map((admin, idx) => (
           <AdminCard
             key={admin.name}
