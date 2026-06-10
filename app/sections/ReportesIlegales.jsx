@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   ArrowLeft, BarChart2, RefreshCw, Lock,
   Users, Shield, Wifi, TrendingUp,
-  AlertTriangle, Clock, User, ChevronLeft, ChevronRight, List,
+  AlertTriangle, Clock, User, ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import { FM_PROJECT_ID, fmtTime, fmtTimeRelative } from '@/lib/fivemonitor';
 
@@ -416,7 +416,7 @@ function JailsTable({ jails }) {
 
 // Lista de las últimas sanciones (panel derecho)
 function RecentSanciones({ jails }) {
-  const items = jails.slice(0, 10);
+  const items = jails;
   return (
     <div style={{
       background: 'var(--surface)', border: '1px solid var(--border)',
@@ -471,8 +471,7 @@ function RecentSanciones({ jails }) {
 
 // Dashboard completo de un admin
 function AdminDashboard({ admin, jails: allJails, onBack }) {
-  const [periodIdx,   setPeriodIdx]   = useState(1);
-  const [showRecords, setShowRecords] = useState(false);
+  const [periodIdx, setPeriodIdx] = useState(1);
 
   const period = PERIODS[periodIdx];
   const jails  = filterByPeriod(allJails, period.days);
@@ -539,24 +538,6 @@ function AdminDashboard({ admin, jails: allJails, onBack }) {
           </div>
         </div>
 
-        {/* Botón ver todos los registros */}
-        <button
-          onClick={() => setShowRecords(v => !v)}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 6,
-            background: showRecords ? 'var(--red)' : 'var(--surface)',
-            border: `1px solid ${showRecords ? 'var(--red)' : 'var(--border)'}`,
-            borderRadius: 6, padding: '6px 14px', cursor: 'pointer',
-            fontSize: 12, color: showRecords ? '#fff' : 'var(--text2)',
-            fontWeight: showRecords ? 600 : 400,
-            transition: 'all .15s', flexShrink: 0,
-          }}
-          onMouseEnter={e => { if (!showRecords) e.currentTarget.style.borderColor = 'var(--border2)'; }}
-          onMouseLeave={e => { if (!showRecords) e.currentTarget.style.borderColor = 'var(--border)'; }}
-        >
-          <List size={13} />
-          {showRecords ? 'Ocultar registros' : 'Ver registros'}
-        </button>
       </div>
 
       {/* ── Período ── */}
@@ -566,7 +547,7 @@ function AdminDashboard({ admin, jails: allJails, onBack }) {
             key={i}
             className={`btns${periodIdx === i ? ' active' : ''}`}
             style={{ fontSize: 11, padding: '5px 12px' }}
-            onClick={() => { setPeriodIdx(i); setShowRecords(false); }}
+            onClick={() => setPeriodIdx(i)}
           >
             {p.label}
           </button>
@@ -646,7 +627,7 @@ function AdminDashboard({ admin, jails: allJails, onBack }) {
       {/* ── Resumen histórico (fila horizontal) ── */}
       <div style={{
         background: 'var(--surface)', border: '1px solid var(--border)',
-        borderRadius: 10, padding: '16px 20px', marginBottom: showRecords ? 16 : 0,
+        borderRadius: 10, padding: '16px 20px', marginBottom: 16,
       }}>
         <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text2)', marginBottom: 14 }}>
           Resumen histórico
@@ -671,17 +652,14 @@ function AdminDashboard({ admin, jails: allJails, onBack }) {
         </div>
       </div>
 
-      {/* ── Todos los registros paginados (toggle) ── */}
-      {showRecords && (
-        <div>
-          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text2)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
-            <List size={13} style={{ color: 'var(--red)' }} />
-            Todos los registros
-            <span style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 400 }}>— {allJails.length} en total</span>
-          </div>
-          <JailsTable jails={allJails} />
+      {/* ── Todos los registros paginados ── */}
+      <div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text2)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+          Registros del período
+          <span style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 400 }}>— {jails.length} registros</span>
         </div>
-      )}
+        <JailsTable jails={jails} />
+      </div>
     </div>
   );
 }

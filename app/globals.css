@@ -503,6 +503,7 @@ html[data-theme="light"] .theme-btn .lucide-moon { display: block; }
   transition: border-color .14s;
 }
 .btns:hover { border-color: var(--border2); color: var(--text); }
+.btns.active { background: var(--red); border-color: var(--red); color: #fff; font-weight: 600; }
 .fc-dots { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; max-width: 440px; }
 .dot {
   width: 6px; height: 6px; background: var(--border2);
