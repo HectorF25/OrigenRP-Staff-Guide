@@ -665,21 +665,21 @@ function AdminDashboard({ admin, jails: allJails, onBack }) {
 }
 
 // ─── AdminCard (overview) ─────────────────────────────────────────────────────
-function AdminCard({ admin, data, rank, maxWeekly, onSelect }) {
+function AdminCard({ admin, data, rank, maxPeriod, period, onSelect }) {
   const [hovered, setHovered] = useState(false);
-  const { status, jails = [] } = data;
+  const { status, jails: allJails = [] } = data;
   const loading = status === 'loading';
   const done    = status === 'done';
 
-  const now       = Date.now();
+  const jails     = filterByPeriod(allJails, period.days);
   const total     = jails.length;
-  const weekly    = jails.filter(j => new Date(j.ts).getTime() >= now - WEEK_MS).length;
   const online    = jails.filter(j => j.isOnline).length;
   const offline   = jails.filter(j => !j.isOnline).length;
   const onlinePct = total > 0 ? Math.round((online / total) * 100) : 0;
-  const weeklyPct = maxWeekly > 0 ? Math.round((weekly / maxWeekly) * 100) : 0;
-  const lastJail  = jails[0];
+  const periodPct = maxPeriod > 0 ? Math.round((total / maxPeriod) * 100) : 0;
+  const lastJail  = allJails[0];
 
+  const weekly = allJails.filter(j => new Date(j.ts).getTime() >= Date.now() - WEEK_MS).length;
   const { label: actLabel, color: actColor } = activityInfo(weekly);
   const aColor  = avatarColor(admin.name);
   const aLetter = avatarLetter(admin.name);
@@ -738,7 +738,7 @@ function AdminCard({ admin, data, rank, maxWeekly, onSelect }) {
             <span style={{ fontSize: 11, color: 'var(--text2)', fontWeight: 500 }}>{actLabel}</span>
           </div>
           <span style={{ fontSize: 10, fontWeight: 600, color: actColor, background: actColor + '18', border: `1px solid ${actColor}30`, borderRadius: 4, padding: '2px 7px' }}>
-            +{weekly} esta semana
+            +{total} {period.label.toLowerCase()}
           </span>
         </div>
       )}
@@ -750,7 +750,7 @@ function AdminCard({ admin, data, rank, maxWeekly, onSelect }) {
             <div style={{ height: '100%', borderRadius: 999, width: `${onlinePct}%`, background: 'linear-gradient(90deg, #22c55e, #16a34a)', transition: 'width .4s' }} />
           </div>
           <div style={{ height: 3, background: 'var(--border)', borderRadius: 999, overflow: 'hidden' }}>
-            <div style={{ height: '100%', borderRadius: 999, width: `${weeklyPct}%`, background: actColor, transition: 'width .4s' }} />
+            <div style={{ height: '100%', borderRadius: 999, width: `${periodPct}%`, background: actColor, transition: 'width .4s' }} />
           </div>
         </div>
       )}
@@ -813,6 +813,7 @@ export default function ReportesIlegales({ user }) {
   const [selected,  setSelected]  = useState(null);
   const [sortBy,    setSortBy]    = useState('count');
   const [filter,    setFilter]    = useState('');
+  const [periodIdx, setPeriodIdx] = useState(1);
   const [adminData, setAdminData] = useState(() => {
     const d = {};
     for (const a of ADMINS) d[a.name] = { status: 'idle', jails: [] };
@@ -873,9 +874,11 @@ export default function ReportesIlegales({ user }) {
   const isLoading   = loadedCount === 0;
   const now         = Date.now();
 
+  const period      = PERIODS[periodIdx];
   const allJails    = Object.values(adminData).flatMap(d => d.jails ?? []);
-  const totalJails  = allJails.length;
-  const totalOnline = allJails.filter(j => j.isOnline).length;
+  const periodJails = filterByPeriod(allJails, period.days);
+  const totalJails  = periodJails.length;
+  const totalOnline = periodJails.filter(j => j.isOnline).length;
   const totalWeekly = allJails.filter(j => new Date(j.ts).getTime() >= now - WEEK_MS).length;
 
   const filtered = filter
@@ -884,7 +887,11 @@ export default function ReportesIlegales({ user }) {
 
   const sorted = [...filtered].sort((a, b) => {
     const da = adminData[a.name], db = adminData[b.name];
-    if (sortBy === 'count') return (db.jails?.length ?? 0) - (da.jails?.length ?? 0);
+    if (sortBy === 'count') {
+      const ca = filterByPeriod(da.jails ?? [], period.days).length;
+      const cb = filterByPeriod(db.jails ?? [], period.days).length;
+      return cb - ca;
+    }
     if (sortBy === 'activity') {
       const wa = (da.jails ?? []).filter(j => new Date(j.ts).getTime() >= now - WEEK_MS).length;
       const wb = (db.jails ?? []).filter(j => new Date(j.ts).getTime() >= now - WEEK_MS).length;
@@ -893,8 +900,8 @@ export default function ReportesIlegales({ user }) {
     return a.name.localeCompare(b.name, 'es', { sensitivity: 'base' });
   });
 
-  const maxWeekly = Math.max(1, ...Object.values(adminData).map(d =>
-    (d.jails ?? []).filter(j => new Date(j.ts).getTime() >= now - WEEK_MS).length
+  const maxPeriod = Math.max(1, ...Object.values(adminData).map(d =>
+    filterByPeriod(d.jails ?? [], period.days).length
   ));
 
   return (
@@ -929,9 +936,23 @@ export default function ReportesIlegales({ user }) {
         </div>
       )}
 
+      {/* ── Filtro de período ── */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 16, flexWrap: 'wrap' }}>
+        {PERIODS.map((p, i) => (
+          <button
+            key={i}
+            className={`btns${periodIdx === i ? ' active' : ''}`}
+            style={{ fontSize: 11, padding: '5px 12px' }}
+            onClick={() => setPeriodIdx(i)}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
+
       <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
         <GlobalStatCard icon={Users}      value={ADMINS.length}                    label="en el equipo"        color="var(--blue)"            loading={false}     />
-        <GlobalStatCard icon={Shield}     value={totalJails.toLocaleString('es')}  label="histórico acumulado" color="var(--red)"             loading={isLoading} />
+        <GlobalStatCard icon={Shield}     value={totalJails.toLocaleString('es')}  label={`jails ${period.label.toLowerCase()}`} color="var(--red)" loading={isLoading} />
         <GlobalStatCard icon={Wifi}       value={totalOnline.toLocaleString('es')} label="reportes online"     color="#22c55e"                loading={isLoading} />
         <GlobalStatCard icon={TrendingUp} value={`+${totalWeekly}`}                label="actividad reciente"  color="var(--orange, #f97316)" loading={isLoading} />
       </div>
@@ -959,7 +980,8 @@ export default function ReportesIlegales({ user }) {
             admin={admin}
             data={adminData[admin.name]}
             rank={idx + 1}
-            maxWeekly={maxWeekly}
+            maxPeriod={maxPeriod}
+            period={period}
             onSelect={(a) => { setSelected(a); setView('dashboard'); }}
           />
         ))}

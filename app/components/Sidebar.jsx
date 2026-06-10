@@ -1,6 +1,6 @@
 import {
   Sparkles, Terminal, Bot, PackageOpen, Scale, Users, Building2,
-  Landmark, Shield, BookOpen, Target, Layers, FileText, Activity, Cctv, Gavel, BarChart2, Search, LayoutDashboard
+  Landmark, Shield, BookOpen, Target, Layers, FileText, Activity, Cctv, Gavel, BarChart2, Search, LayoutDashboard, Gift
 } from 'lucide-react';
 import { SERVER_ICON } from '@/lib/constants';
 
@@ -65,6 +65,7 @@ export default function Sidebar({ page, onPick, open, user }) {
   if (canSeeDashboardAdmin(user))  ilegalesItems.push({ i: 18, icon: LayoutDashboard, label: 'Mi Dashboard'       });
   if (canSeeReportes(user))        ilegalesItems.push({ i: 16, icon: BarChart2,       label: 'Reportes Ilegales' });
   if (canSeeReporteJugador(user))  ilegalesItems.push({ i: 17, icon: Search,          label: 'Reporte Jugador'   });
+  if (canSeeReportes(user))        ilegalesItems.push({ i: 19, icon: Gift,            label: 'GiveItem Monitor'  });
 
   const navGroups = ilegalesItems.length > 0
     ? [...BASE_GROUPS, { title: 'Ilegales', items: ilegalesItems }]
