@@ -4,9 +4,11 @@ import {
 } from 'lucide-react';
 import { SERVER_ICON } from '@/lib/constants';
 
-const ILEGALES_ALLOWED_IDS  = new Set(['343822757911330817', '752975491228500019']);
+const SUPERVISOR_ALLOWED_ROLE = '1484372153108533308';
+const SUPERVISOR_ALLOWED_IDS  = new Set(['343822757911330817', '1484372153108533308']);
+const ILEGALES_ALLOWED_IDS  = new Set(['343822757911330817', '752975491228500019', '1484372153108533308']);
 const ILEGALES_ALLOWED_ROLE = '1487429315992879114';
-const COORD_IDS             = new Set(['343822757911330817', '752975491228500019']);
+const COORD_IDS             = new Set(['343822757911330817', '752975491228500019', '1484372153108533308']);
 const ILEGALES_ADMIN_IDS    = new Set([
   '659812927636897810','752057219058630676','713393949624107058','343822757911330817',
   '748287186239094936','1310021491827408976','1395195029747929089','1032794430232592394',
@@ -21,6 +23,12 @@ function canSeeReportes(user) {
   if (!user) return false;
   if (ILEGALES_ALLOWED_IDS.has(user.id)) return true;
   return Array.isArray(user.roles) && user.roles.includes(ILEGALES_ALLOWED_ROLE);
+}
+
+function canSeeGiveItemMonitor(user) {
+  if (!user) return false;
+  if (SUPERVISOR_ALLOWED_IDS.has(user.id)) return true;
+  return Array.isArray(user.roles) && user.roles.includes(SUPERVISOR_ALLOWED_ROLE);
 }
 
 function canSeeReporteJugador(user) {
@@ -65,7 +73,7 @@ export default function Sidebar({ page, onPick, open, user }) {
   if (canSeeDashboardAdmin(user))  ilegalesItems.push({ i: 18, icon: LayoutDashboard, label: 'Mi Dashboard'       });
   if (canSeeReportes(user))        ilegalesItems.push({ i: 16, icon: BarChart2,       label: 'Reportes Ilegales' });
   if (canSeeReporteJugador(user))  ilegalesItems.push({ i: 17, icon: Search,          label: 'Reporte Jugador'   });
-  if (canSeeReportes(user))        ilegalesItems.push({ i: 19, icon: Gift,            label: 'GiveItem Monitor'  });
+  if (canSeeGiveItemMonitor(user)) ilegalesItems.push({ i: 19, icon: Gift,            label: 'GiveItem Monitor'  });
 
   const navGroups = ilegalesItems.length > 0
     ? [...BASE_GROUPS, { title: 'Ilegales', items: ilegalesItems }]
