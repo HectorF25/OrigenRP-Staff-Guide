@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { RefreshCw, Lock, User, AlertTriangle, Clock, TrendingUp, List, ChevronLeft, ChevronRight } from 'lucide-react';
+import { RefreshCw, Lock, User, AlertTriangle, Clock, TrendingUp, ChevronLeft, ChevronRight } from 'lucide-react';
 import { FM_PROJECT_ID, fmtTime, fmtTimeRelative } from '@/lib/fivemonitor';
 
 // ─── Config ───────────────────────────────────────────────────────────────────
@@ -231,7 +231,7 @@ function JailBadge({ isOnline }) {
 }
 
 function RecentSanciones({ jails }) {
-  const items = jails.slice(0, 10);
+  const items = jails;
   return (
     <div style={{
       background: 'var(--surface)', border: '1px solid var(--border)',
@@ -366,7 +366,6 @@ export default function DashboardAdmin({ user }) {
   const [loading,    setLoading]    = useState(false);
   const [error,      setError]      = useState(null);
   const [loadedAt,   setLoadedAt]   = useState(null);
-  const [showRecords, setShowRecords] = useState(false);
   const abortRef = useRef(null);
 
   function load() {
@@ -450,64 +449,66 @@ export default function DashboardAdmin({ user }) {
     <div className="section active">
 
       {/* ── Cabecera ── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
-        <div style={{
-          width: 40, height: 40, borderRadius: '50%', flexShrink: 0,
-          background: aColor + '22', border: `2px solid ${aColor}55`,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 15, fontWeight: 800, color: aColor,
-        }}>
-          {aLetter}
-        </div>
+      <div style={{ marginBottom: 20 }}>
+        {/* Fila superior: Volver */}
+        <button
+          onClick={() => window.history.back()}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 5,
+            background: 'none', border: 'none', cursor: 'pointer',
+            fontSize: 12, color: 'var(--text3)', padding: '0 0 10px 0',
+            transition: 'color .15s',
+          }}
+          onMouseEnter={e => e.currentTarget.style.color = 'var(--text2)'}
+          onMouseLeave={e => e.currentTarget.style.color = 'var(--text3)'}
+        >
+          <ChevronLeft size={14} />
+          Volver
+        </button>
 
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>{myAdmin.name}</div>
-          <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>
-            {loading
-              ? 'Cargando historial…'
-              : loadedAt
-                ? `Actualizado ${fmtTimeRelative(loadedAt)} · ${allJails.length.toLocaleString('es')} jails en total`
-                : 'Dashboard personal de ilegales'
-            }
+        {/* Fila perfil */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <div style={{
+            width: 44, height: 44, borderRadius: '50%', flexShrink: 0,
+            background: aColor + '22', border: `2px solid ${aColor}66`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 16, fontWeight: 800, color: aColor,
+          }}>
+            {aLetter}
           </div>
+
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)', lineHeight: 1.2 }}>
+              {myAdmin.name}
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 3 }}>
+              {loading
+                ? 'Cargando historial…'
+                : loadedAt
+                  ? `${allJails.length.toLocaleString('es')} jails en total · actualizado ${fmtTimeRelative(loadedAt)}`
+                  : 'Dashboard personal de ilegales'
+              }
+            </div>
+          </div>
+
+          {/* Actualizar */}
+          <button
+            onClick={load}
+            disabled={loading}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              background: 'var(--surface)', border: '1px solid var(--border)',
+              borderRadius: 6, padding: '6px 12px', cursor: loading ? 'default' : 'pointer',
+              fontSize: 12, color: 'var(--text2)', opacity: loading ? .5 : 1,
+              transition: 'border-color .15s', flexShrink: 0,
+            }}
+            onMouseEnter={e => { if (!loading) e.currentTarget.style.borderColor = 'var(--border2)'; }}
+            onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
+          >
+            <RefreshCw size={12} style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }} />
+            Actualizar
+          </button>
         </div>
-
-        {/* Ver registros */}
-        <button
-          onClick={() => setShowRecords(v => !v)}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 6,
-            background: showRecords ? 'var(--red)' : 'var(--surface)',
-            border: `1px solid ${showRecords ? 'var(--red)' : 'var(--border)'}`,
-            borderRadius: 6, padding: '6px 14px', cursor: 'pointer',
-            fontSize: 12, color: showRecords ? '#fff' : 'var(--text2)',
-            fontWeight: showRecords ? 600 : 400,
-            transition: 'all .15s', flexShrink: 0,
-          }}
-          onMouseEnter={e => { if (!showRecords) e.currentTarget.style.borderColor = 'var(--border2)'; }}
-          onMouseLeave={e => { if (!showRecords) e.currentTarget.style.borderColor = 'var(--border)'; }}
-        >
-          <List size={13} />
-          {showRecords ? 'Ocultar registros' : 'Ver registros'}
-        </button>
-
-        {/* Actualizar */}
-        <button
-          onClick={load}
-          disabled={loading}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 6,
-            background: 'var(--surface)', border: '1px solid var(--border)',
-            borderRadius: 6, padding: '6px 12px', cursor: loading ? 'default' : 'pointer',
-            fontSize: 12, color: 'var(--text2)', opacity: loading ? .5 : 1,
-            transition: 'border-color .15s', flexShrink: 0,
-          }}
-          onMouseEnter={e => { if (!loading) e.currentTarget.style.borderColor = 'var(--border2)'; }}
-          onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
-        >
-          <RefreshCw size={12} style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }} />
-          Actualizar
-        </button>
       </div>
 
       {error && (
@@ -523,7 +524,7 @@ export default function DashboardAdmin({ user }) {
             key={i}
             className={`btns${periodIdx === i ? ' active' : ''}`}
             style={{ fontSize: 11, padding: '5px 12px' }}
-            onClick={() => { setPeriodIdx(i); setShowRecords(false); }}
+            onClick={() => setPeriodIdx(i)}
           >
             {p.label}
           </button>
@@ -606,7 +607,7 @@ export default function DashboardAdmin({ user }) {
       <div style={{
         background: 'var(--surface)', border: '1px solid var(--border)',
         borderRadius: 10, padding: '16px 20px',
-        marginBottom: showRecords ? 16 : 0,
+        marginBottom: 16,
       }}>
         <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text2)', marginBottom: 14 }}>
           Resumen histórico — {myAdmin.name}
@@ -637,16 +638,15 @@ export default function DashboardAdmin({ user }) {
       </div>
 
       {/* ── Todos los registros paginados ── */}
-      {showRecords && (
-        <div>
-          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text2)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
-            <List size={13} style={{ color: 'var(--red)' }} />
-            Todos mis registros
-            <span style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 400 }}>— {allJails.length} en total</span>
-          </div>
-          <JailsTable jails={allJails} />
+      <div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text2)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+          Registros del período
+          <span style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 400 }}>
+            — {loading ? '…' : `${jails.length} registros`}
+          </span>
         </div>
-      )}
+        <JailsTable jails={jails} />
+      </div>
     </div>
   );
 }
