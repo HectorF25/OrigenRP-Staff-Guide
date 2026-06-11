@@ -805,9 +805,9 @@ export default function Organizaciones({ user }) {
   const totalRecr = orgs.reduce((s, o) => s + o.stats.total, 0);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
       {/* Header */}
-      <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+      <div style={{ flexShrink: 0, padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
         <div>
           <h1 style={{ margin: 0, fontSize: 17, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text)' }}>
             <Flag size={15} /> Organizaciones Criminales
@@ -826,18 +826,18 @@ export default function Organizaciones({ user }) {
         {error && <div style={{ width: '100%', color: 'var(--red)', fontSize: 12 }}>{error}</div>}
       </div>
 
-      {/* Body */}
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden', minWidth: 0 }}>
+      {/* Body — minHeight:0 prevents flex children from overflowing their parent */}
+      <div style={{ display: 'flex', flex: 1, minHeight: 0, minWidth: 0, overflow: 'hidden' }}>
         {/* Sidebar */}
-        <div style={{ width: 280, minWidth: 280, maxWidth: 280, borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          <div style={{ padding: '10px', borderBottom: '1px solid var(--border)' }}>
+        <div style={{ width: 280, minWidth: 280, maxWidth: 280, flexShrink: 0, borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          <div style={{ flexShrink: 0, padding: '10px', borderBottom: '1px solid var(--border)' }}>
             <div style={{ position: 'relative' }}>
               <Search size={12} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)', pointerEvents: 'none' }} />
               <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar organización…"
                 style={{ width: '100%', padding: '6px 8px 6px 26px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', fontSize: 12, boxSizing: 'border-box' }} />
             </div>
           </div>
-          <div style={{ flex: 1, overflowY: 'auto', padding: '6px 4px' }}>
+          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '6px 4px' }}>
             {loading && !orgs.length && (
               <div style={{ padding: 20, textAlign: 'center', color: 'var(--muted)', fontSize: 12 }}>{progress || 'Cargando…'}</div>
             )}
@@ -875,7 +875,7 @@ export default function Organizaciones({ user }) {
                     <span style={{
                       fontSize: 10,
                       fontWeight: 600,
-                      color: isActive ? 'var(--blue)' : 'var(--muted)',
+                      color: isActive ? 'var(--blue)' : '#8b9bb0',
                       background: 'var(--surface2)',
                       padding: '1px 6px',
                       borderRadius: 4,
@@ -889,7 +889,7 @@ export default function Organizaciones({ user }) {
                     {[['HOY', org.stats.today, 'var(--blue)'], ['7D', org.stats.week, 'var(--cyan)'], ['TOTAL', org.stats.total, 'var(--green)']].map(([l, v, c]) => (
                       <div key={l} style={{ textAlign: 'center' }}>
                         <div style={{ fontWeight: 700, fontSize: 14, color: c, lineHeight: 1.1 }}>{v}</div>
-                        <div style={{ fontSize: 9, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.04em', marginTop: 1 }}>{l}</div>
+                        <div style={{ fontSize: 9, color: '#8b9bb0', textTransform: 'uppercase', letterSpacing: '0.04em', marginTop: 1 }}>{l}</div>
                       </div>
                     ))}
                   </div>
