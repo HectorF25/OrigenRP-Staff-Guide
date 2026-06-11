@@ -14,16 +14,26 @@ const ROWS_PER_PAGE     = 20;
 const ALLOWED_IDS       = new Set(['343822757911330817', '752975491228500019']);
 const ALLOWED_ROLE      = '1487429315992879114';
 
+// Search terms per channel
+const HIRE_QUERIES  = ['Contratar Miembro', 'Cambio de Rango', 'Crear Rango'];
+const ADMIN_QUERIES = [
+  'Remover Jugador de Banda',
+  'Asignar Jugador a Banda',
+  'Modificar Configuración de Banda',
+  'Eliminar Banda',
+  'Garage Común',
+];
+
 /* ─── Time helpers ───────────────────────────────────────────────────────────── */
 function startOfToday() { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); }
 function inPeriod(ts, period) {
   const t = new Date(ts).getTime();
   const n = Date.now();
-  if (period === 'today')     return t >= startOfToday();
-  if (period === 'week')      return t >= n - 7  * 86_400_000;
-  if (period === 'twoWeeks')  return t >= n - 14 * 86_400_000;
-  if (period === 'month')     return t >= n - 30 * 86_400_000;
-  return true; // 'all'
+  if (period === 'today')    return t >= startOfToday();
+  if (period === 'week')     return t >= n - 7  * 86_400_000;
+  if (period === 'twoWeeks') return t >= n - 14 * 86_400_000;
+  if (period === 'month')    return t >= n - 30 * 86_400_000;
+  return true;
 }
 const PERIODS = [
   { key: 'today',    label: 'Hoy'        },
@@ -37,8 +47,8 @@ const PERIODS = [
 function getField(fields, kw) {
   return (fields ?? []).find(f => f.name?.includes(kw))?.value ?? '';
 }
-// Extracts { gameName, discordId } from embed field text like:
-// "**Nombre:** BoldRabbit8955\n**ID:** 7145\n...\n**Discord:** <@460620168566013952>"
+// Extracts { gameName, discordId } from embed text like:
+// "**Nombre:** NAME\n**ID:** 123\n...\n**Discord:** <@DISCORD_ID>"
 function parsePlayer(text) {
   const nm = (text ?? '').match(/\*\*Nombre:\*\*\s*([^\n]+)/);
   const dm = (text ?? '').match(/<@(\d+)>/);
@@ -52,25 +62,37 @@ function orgLabel(key) {
 }
 
 /* ─── API ────────────────────────────────────────────────────────────────────── */
-async function fetchAllPages(channelId, onProgress, signal) {
+// Fetches all pages of a search query from the FiveMonitor search API
+async function searchAllPages(query, channelId, signal) {
   const all = [];
+  const q = encodeURIComponent(query);
   for (let p = 1; p <= MAX_PAGES; p++) {
     if (signal?.aborted) break;
     try {
       const r = await fetch(
-        `/api/fm/v1/channels/${channelId}/logs?page=${p}&limit=${PAGE_LIMIT}`,
+        `/api/fm/v1/projects/${FM_PROJECT_ID}/logs/search?q=${q}&limit=${PAGE_LIMIT}&page=${p}&cId=${channelId}`,
         { signal }
       );
       if (!r.ok) break;
       const data = await r.json();
-      const logs = Array.isArray(data) ? data : (data.logs ?? []);
+      const logs       = Array.isArray(data) ? data : (data.logs ?? []);
+      const totalPages = data.totalPages ?? 1;
       if (!logs.length) break;
       all.push(...logs);
-      onProgress?.(all.length);
-      if (logs.length < PAGE_LIMIT) break;
+      if (p >= totalPages || logs.length < PAGE_LIMIT) break;
     } catch { break; }
   }
   return all;
+}
+
+// Deduplicate logs by _id
+function dedupById(logs) {
+  const seen = new Set();
+  return logs.filter(l => {
+    if (!l._id || seen.has(l._id)) return false;
+    seen.add(l._id);
+    return true;
+  });
 }
 
 // Module-level Discord name cache (persists while tab is open)
@@ -84,8 +106,8 @@ async function lookupDiscordName(discordId, signal) {
       { signal }
     );
     if (!r.ok) return '—';
-    const data  = await r.json();
-    const logs  = Array.isArray(data) ? data : (data.logs ?? []);
+    const data = await r.json();
+    const logs = Array.isArray(data) ? data : (data.logs ?? []);
     const embed = logs[0]?.metadata?.embeds?.[0];
     const name  = embed?.fields?.find(f => f.name === 'Nombre')?.value ?? '—';
     _dCache[discordId] = name;
@@ -104,8 +126,8 @@ function buildOrgs(hireLogs, adminLogs) {
         key,
         label:        orgLabel(key),
         members:      [],   // { gameName, discordId, rank, timestamp, removed }
-        hireActions:  [],   // events from hire channel
-        adminActions: [],   // events from admin channel
+        hireActions:  [],
+        adminActions: [],
         removedNames: new Set(),
       });
     }
@@ -130,11 +152,11 @@ function buildOrgs(hireLogs, adminLogs) {
       org.hireActions.push({ type: 'hire', title, gameName, discordId, rank, timestamp: ts });
 
     } else if (title.includes('Cambio de Rango')) {
-      const orgKey    = getField(fields, 'Banda');
-      const actorTxt  = getField(fields, 'Quien ejecutó');
+      const orgKey   = getField(fields, 'Banda');
+      const actorTxt = getField(fields, 'Quien ejecutó');
       const { gameName: actorName } = parsePlayer(actorTxt);
-      const affected  = getField(fields, 'Miembro afectado');
-      const newRank   = getField(fields, 'Nuevo rango');
+      const affected = getField(fields, 'Miembro afectado');
+      const newRank  = getField(fields, 'Nuevo rango');
       const org = getOrg(orgKey); if (!org) continue;
       org.hireActions.push({ type: 'rank_change', title, actorName, affected, newRank, timestamp: ts });
 
@@ -166,29 +188,28 @@ function buildOrgs(hireLogs, adminLogs) {
       const assigned = getField(fields, 'Jugador asignado');
       const rank     = getField(fields, 'Rango');
       const org = getOrg(orgKey); if (!org) continue;
-      org.adminActions.push({ type: 'assign', title, actorName, actorDiscordId, assigned, rank, timestamp: ts, isAdmin: true });
+      org.adminActions.push({ type: 'assign', actorName, actorDiscordId, assigned, rank, timestamp: ts, isAdmin: true });
 
     } else if (title.includes('Remover Jugador')) {
-      const orgKey  = getField(fields, 'Banda');
-      const removed = getField(fields, 'Jugador removido');
+      const orgKey     = getField(fields, 'Banda');
+      const removedTxt = getField(fields, 'Jugador removido');
+      // Parse the same way as "Nuevo miembro" — field has "**Nombre:** NAME\n..."
+      const { gameName: removedName } = parsePlayer(removedTxt);
       const org = getOrg(orgKey); if (!org) continue;
-      // Only treat as a real player name if it doesn't look like a license/char hash
-      if (removed && !removed.startsWith('char') && !removed.startsWith('license')) {
-        org.removedNames.add(removed.toLowerCase().trim());
-      }
-      org.adminActions.push({ type: 'remove', title, actorName, actorDiscordId, removed, timestamp: ts, isAdmin: true });
+      if (removedName) org.removedNames.add(removedName.toLowerCase().trim());
+      org.adminActions.push({ type: 'remove', actorName, actorDiscordId, removedName, timestamp: ts, isAdmin: true });
 
     } else if (title.includes('Eliminar Banda')) {
       const orgKey   = getField(fields, 'Banda eliminada');
       const affected = getField(fields, 'Miembros afectados');
       const org = getOrg(orgKey); if (!org) continue;
-      org.adminActions.push({ type: 'delete_band', title, actorName, actorDiscordId, affected, timestamp: ts, isAdmin: true });
+      org.adminActions.push({ type: 'delete_band', actorName, actorDiscordId, affected, timestamp: ts, isAdmin: true });
 
     } else if (title.includes('Modificar Configuración')) {
       const orgKey  = getField(fields, 'Banda');
       const changes = getField(fields, 'Cambios');
       const org = getOrg(orgKey); if (!org) continue;
-      org.adminActions.push({ type: 'config', title, actorName, actorDiscordId, changes, timestamp: ts, isAdmin: true });
+      org.adminActions.push({ type: 'config', actorName, actorDiscordId, changes, timestamp: ts, isAdmin: true });
 
     } else if (isGarage) {
       const orgKey = getField(fields, 'Banda');
@@ -196,9 +217,30 @@ function buildOrgs(hireLogs, adminLogs) {
       const plate  = getField(fields, 'Placa');
       const netId  = getField(fields, 'NetId');
       const action = title.includes('Sacar') ? 'Sacar vehículo' : 'Guardar vehículo';
-      org.adminActions.push({ type: 'garage', title, actorName, actorDiscordId, action, plate, netId, timestamp: ts, isAdmin: false });
+      org.adminActions.push({ type: 'garage', actorName, actorDiscordId, action, plate, netId, timestamp: ts, isAdmin: false });
     }
-    // "Punto Caliente" is not org-specific — skip
+  }
+
+  /* ── Cross-org dedup: player can only be in their most recent org ── */
+  // Build global map: gameName.lower → { orgKey, timestamp }
+  const playerLatest = new Map();
+  for (const [orgKey, org] of map.entries()) {
+    for (const m of org.members) {
+      const k = m.gameName.toLowerCase().trim();
+      if (!k) continue;
+      const existing = playerLatest.get(k);
+      if (!existing || new Date(m.timestamp) > new Date(existing.timestamp)) {
+        playerLatest.set(k, { orgKey, timestamp: m.timestamp });
+      }
+    }
+  }
+  // Remove members who belong to a different (more recent) org
+  for (const [orgKey, org] of map.entries()) {
+    org.members = org.members.filter(m => {
+      const k = m.gameName.toLowerCase().trim();
+      if (!k) return true;
+      return playerLatest.get(k)?.orgKey === orgKey;
+    });
   }
 
   /* ── Cross-reference removals ── */
@@ -210,7 +252,7 @@ function buildOrgs(hireLogs, adminLogs) {
     }
   }
 
-  /* ── Compute stats + admins per org ── */
+  /* ── Stats + admins per org ── */
   return [...map.values()]
     .map(org => {
       const { members } = org;
@@ -224,7 +266,6 @@ function buildOrgs(hireLogs, adminLogs) {
         removed:  members.filter(m =>  m.removed).length,
       };
 
-      // Admins only from actual admin-type actions (not garage)
       const adminOnly = org.adminActions.filter(a => a.isAdmin);
       const adminsMap = new Map();
       for (const a of adminOnly) {
@@ -234,7 +275,6 @@ function buildOrgs(hireLogs, adminLogs) {
         adminsMap.get(k).actions.push(a);
       }
       org.admins = [...adminsMap.values()].sort((a, b) => b.actions.length - a.actions.length);
-
       return org;
     })
     .sort((a, b) => b.stats.total - a.stats.total);
@@ -256,7 +296,15 @@ function CopyBtn({ text }) {
 
 function StatPill({ label, value, color }) {
   return (
-    <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderTop: `3px solid ${color}`, borderRadius: 10, padding: '10px 16px', textAlign: 'center', minWidth: 90 }}>
+    <div style={{
+      background: 'var(--surface2)',
+      border: '1px solid var(--border)',
+      borderTop: `3px solid ${color}`,
+      borderRadius: 10,
+      padding: '10px 16px',
+      textAlign: 'center',
+      minWidth: 90,
+    }}>
       <div style={{ fontSize: 26, fontWeight: 700, color, lineHeight: 1.1 }}>{value}</div>
       <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</div>
     </div>
@@ -268,10 +316,12 @@ function PeriodFilter({ value, onChange }) {
     <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
       {PERIODS.map(p => (
         <button key={p.key} onClick={() => onChange(p.key)}
-          style={{ padding: '4px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12,
+          style={{
+            padding: '4px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12,
             background: value === p.key ? 'var(--red)' : 'var(--surface2)',
             color: value === p.key ? '#fff' : 'var(--text)',
-            fontWeight: value === p.key ? 700 : 400 }}>
+            fontWeight: value === p.key ? 700 : 400,
+          }}>
           {p.label}
         </button>
       ))}
@@ -305,11 +355,11 @@ function actionSummary(a) {
   if (a.type === 'rank_change') return `${a.actorName || '?'} cambió rango de "${a.affected}" → ${a.newRank}`;
   if (a.type === 'rank_create') return `${a.actorName || '?'} creó rango: ${a.rankName}`;
   if (a.type === 'assign')      return `${a.actorName || '?'} asignó a ${a.assigned} (rango ${a.rank})`;
-  if (a.type === 'remove')      return `${a.actorName || '?'} removió a ${a.removed}`;
+  if (a.type === 'remove')      return `${a.actorName || '?'} removió a ${a.removedName || '?'}`;
   if (a.type === 'delete_band') return `${a.actorName || '?'} eliminó la banda (${a.affected} miembros)`;
   if (a.type === 'config')      return `${a.actorName || '?'} modificó configuración`;
   if (a.type === 'garage')      return `${a.actorName || '?'}: ${a.action} ${a.plate || a.netId || ''}`;
-  return a.title || a.type;
+  return a.type;
 }
 
 /* ── Members Table ── */
@@ -320,19 +370,16 @@ function MembersTable({ members, orgKey }) {
   const [names, setNames]   = useState({});
   const abortRef            = useRef(null);
 
-  // Reset when org changes
   useEffect(() => { setPeriod('all'); setSearch(''); setPg(1); }, [orgKey]);
 
-  // Lazy-load Discord names for all members of this org
   useEffect(() => {
     const ids = [...new Set(members.map(m => m.discordId).filter(id => id && !names[id] && !_dCache[id]))];
-    if (!ids.length) {
-      // Populate from cache
-      const fromCache = {};
-      for (const m of members) if (_dCache[m.discordId]) fromCache[m.discordId] = _dCache[m.discordId];
-      if (Object.keys(fromCache).length) setNames(prev => ({ ...prev, ...fromCache }));
-      return;
-    }
+    // Populate from cache first
+    const fromCache = {};
+    for (const m of members) if (_dCache[m.discordId]) fromCache[m.discordId] = _dCache[m.discordId];
+    if (Object.keys(fromCache).length) setNames(prev => ({ ...prev, ...fromCache }));
+    if (!ids.length) return;
+
     abortRef.current?.abort();
     const ctrl = new AbortController();
     abortRef.current = ctrl;
@@ -362,7 +409,7 @@ function MembersTable({ members, orgKey }) {
   const rows     = filtered.slice((safePg - 1) * ROWS_PER_PAGE, safePg * ROWS_PER_PAGE);
 
   const th = { padding: '6px 10px', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--muted)', fontWeight: 600, borderBottom: '1px solid var(--border)', textAlign: 'left', whiteSpace: 'nowrap' };
-  const td = { padding: '8px 10px', fontSize: 12, borderBottom: '1px solid var(--border)', verticalAlign: 'middle' };
+  const td = { padding: '8px 10px', fontSize: 12, borderBottom: '1px solid var(--border)', verticalAlign: 'middle', color: 'var(--text)' };
 
   return (
     <div>
@@ -391,17 +438,14 @@ function MembersTable({ members, orgKey }) {
           <tbody>
             {rows.map((m, i) => (
               <tr key={i} style={{ background: m.removed ? 'rgba(231,76,60,0.05)' : 'transparent' }}>
-                {/* Nombre en juego */}
                 <td style={td}>{m.gameName || '—'}</td>
-                {/* Discord (lookup result) */}
                 <td style={{ ...td, color: 'var(--muted)' }}>
                   {m.discordId
                     ? names[m.discordId] !== undefined
-                      ? names[m.discordId]
-                      : <span style={{ opacity: 0.4, fontSize: 11 }}>cargando...</span>
+                      ? (names[m.discordId] || '—')
+                      : <span style={{ opacity: 0.4, fontSize: 11 }}>cargando…</span>
                     : '—'}
                 </td>
-                {/* Discord ID */}
                 <td style={td}>
                   {m.discordId
                     ? <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -410,15 +454,14 @@ function MembersTable({ members, orgKey }) {
                       </span>
                     : '—'}
                 </td>
-                {/* Rango */}
                 <td style={{ ...td, color: 'var(--muted)' }}>{m.rank || '—'}</td>
-                {/* Ingresó */}
                 <td style={{ ...td, color: 'var(--muted)', whiteSpace: 'nowrap', fontSize: 11 }}>{fmtTime(m.timestamp)}</td>
-                {/* Estado */}
                 <td style={td}>
-                  <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600,
+                  <span style={{
+                    display: 'inline-block', padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600,
                     background: m.removed ? 'rgba(231,76,60,0.15)' : 'rgba(46,204,113,0.15)',
-                    color: m.removed ? 'var(--red)' : 'var(--green)' }}>
+                    color: m.removed ? 'var(--red)' : 'var(--green)',
+                  }}>
                     {m.removed ? 'Removido' : 'Activo'}
                   </span>
                 </td>
@@ -460,46 +503,52 @@ function ActionsLog({ hireActions, adminActions, orgKey }) {
   const rows     = filtered.slice((safePg - 1) * ROWS_PER_PAGE, safePg * ROWS_PER_PAGE);
 
   const th = { padding: '6px 10px', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--muted)', fontWeight: 600, borderBottom: '1px solid var(--border)', textAlign: 'left' };
-  const td = { padding: '8px 10px', fontSize: 12, borderBottom: '1px solid var(--border)', verticalAlign: 'middle' };
+  const td = { padding: '8px 10px', fontSize: 12, borderBottom: '1px solid var(--border)', verticalAlign: 'middle', color: 'var(--text)' };
 
   return (
     <div>
       <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 12 }}>
         {types.map(t => (
           <button key={t} onClick={() => { setTypeFilter(t); setPg(1); }}
-            style={{ padding: '3px 10px', borderRadius: 6, border: 'none', borderBottom: `2px solid ${typeFilter === t ? (ACTION_COLORS[t] || 'var(--blue)') : 'transparent'}`,
+            style={{
+              padding: '3px 10px', borderRadius: 6, border: 'none',
+              borderBottom: `2px solid ${typeFilter === t ? (ACTION_COLORS[t] || 'var(--blue)') : 'transparent'}`,
               cursor: 'pointer', fontSize: 11, background: 'var(--surface2)',
-              color: typeFilter === t ? 'var(--text)' : 'var(--muted)', fontWeight: typeFilter === t ? 700 : 400 }}>
+              color: typeFilter === t ? 'var(--text)' : 'var(--muted)',
+              fontWeight: typeFilter === t ? 700 : 400,
+            }}>
             {t === 'all' ? `Todos (${all.length})` : (ACTION_LABELS[t] || t)}
           </button>
         ))}
       </div>
 
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <thead>
-          <tr>
-            {['Tipo', 'Descripción', 'Cuándo'].map(h => <th key={h} style={th}>{h}</th>)}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((a, i) => (
-            <tr key={i}>
-              <td style={{ ...td, whiteSpace: 'nowrap' }}>
-                <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 4, fontSize: 10, fontWeight: 700,
-                  background: (ACTION_COLORS[a.type] || 'var(--muted)') + '22',
-                  color: ACTION_COLORS[a.type] || 'var(--muted)' }}>
-                  {ACTION_LABELS[a.type] || a.type}
-                </span>
-              </td>
-              <td style={{ ...td, maxWidth: 380 }}>{actionSummary(a)}</td>
-              <td style={{ ...td, color: 'var(--muted)', whiteSpace: 'nowrap', fontSize: 11 }}>{fmtTimeRelative(a.timestamp)}</td>
-            </tr>
-          ))}
-          {!rows.length && (
-            <tr><td colSpan={3} style={{ ...td, textAlign: 'center', color: 'var(--muted)', padding: 28 }}>Sin acciones.</td></tr>
-          )}
-        </tbody>
-      </table>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr>{['Tipo', 'Descripción', 'Cuándo'].map(h => <th key={h} style={th}>{h}</th>)}</tr>
+          </thead>
+          <tbody>
+            {rows.map((a, i) => (
+              <tr key={i}>
+                <td style={{ ...td, whiteSpace: 'nowrap' }}>
+                  <span style={{
+                    display: 'inline-block', padding: '2px 8px', borderRadius: 4, fontSize: 10, fontWeight: 700,
+                    background: (ACTION_COLORS[a.type] || 'var(--muted)') + '22',
+                    color: ACTION_COLORS[a.type] || 'var(--muted)',
+                  }}>
+                    {ACTION_LABELS[a.type] || a.type}
+                  </span>
+                </td>
+                <td style={{ ...td, maxWidth: 380 }}>{actionSummary(a)}</td>
+                <td style={{ ...td, color: 'var(--muted)', whiteSpace: 'nowrap', fontSize: 11 }}>{fmtTimeRelative(a.timestamp)}</td>
+              </tr>
+            ))}
+            {!rows.length && (
+              <tr><td colSpan={3} style={{ ...td, textAlign: 'center', color: 'var(--muted)', padding: 28 }}>Sin acciones.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
 
       {totalPgs > 1 && (
         <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginTop: 12 }}>
@@ -524,12 +573,11 @@ function AdminsPanel({ admins, orgKey }) {
   );
 
   const maxCount = admins[0]?.actions.length || 1;
-
   const th = { padding: '6px 10px', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--muted)', fontWeight: 600, borderBottom: '1px solid var(--border)', textAlign: 'left' };
-  const td = { padding: '8px 10px', fontSize: 12, borderBottom: '1px solid var(--border)', verticalAlign: 'middle' };
+  const td = { padding: '8px 10px', fontSize: 12, borderBottom: '1px solid var(--border)', verticalAlign: 'middle', color: 'var(--text)' };
 
   if (selected) {
-    const admin = admins.find(a => (a.discordId || a.name) === selected);
+    const admin  = admins.find(a => (a.discordId || a.name) === selected);
     const sorted = [...(admin?.actions ?? [])].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
     return (
       <div>
@@ -537,25 +585,29 @@ function AdminsPanel({ admins, orgKey }) {
           style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', marginBottom: 12, fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
           ← Volver
         </button>
-        <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12 }}>{admin?.name}</div>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead><tr>{['Tipo', 'Descripción', 'Cuándo'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
-          <tbody>
-            {sorted.map((a, i) => (
-              <tr key={i}>
-                <td style={{ ...td, whiteSpace: 'nowrap' }}>
-                  <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 4, fontSize: 10, fontWeight: 700,
-                    background: (ACTION_COLORS[a.type] || 'var(--muted)') + '22',
-                    color: ACTION_COLORS[a.type] || 'var(--muted)' }}>
-                    {ACTION_LABELS[a.type] || a.type}
-                  </span>
-                </td>
-                <td style={{ ...td, maxWidth: 340 }}>{actionSummary(a)}</td>
-                <td style={{ ...td, color: 'var(--muted)', whiteSpace: 'nowrap', fontSize: 11 }}>{fmtTimeRelative(a.timestamp)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12, color: 'var(--text)' }}>{admin?.name}</div>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead><tr>{['Tipo', 'Descripción', 'Cuándo'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+            <tbody>
+              {sorted.map((a, i) => (
+                <tr key={i}>
+                  <td style={{ ...td, whiteSpace: 'nowrap' }}>
+                    <span style={{
+                      display: 'inline-block', padding: '2px 8px', borderRadius: 4, fontSize: 10, fontWeight: 700,
+                      background: (ACTION_COLORS[a.type] || 'var(--muted)') + '22',
+                      color: ACTION_COLORS[a.type] || 'var(--muted)',
+                    }}>
+                      {ACTION_LABELS[a.type] || a.type}
+                    </span>
+                  </td>
+                  <td style={{ ...td, maxWidth: 340 }}>{actionSummary(a)}</td>
+                  <td style={{ ...td, color: 'var(--muted)', whiteSpace: 'nowrap', fontSize: 11 }}>{fmtTimeRelative(a.timestamp)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     );
   }
@@ -571,7 +623,7 @@ function AdminsPanel({ admins, orgKey }) {
           <div key={key} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: 14 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
               <div>
-                <div style={{ fontWeight: 700, fontSize: 13 }}>{admin.name}</div>
+                <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text)' }}>{admin.name}</div>
                 {admin.discordId && <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>{admin.discordId}</div>}
               </div>
               <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--blue)' }}>{admin.actions.length}</span>
@@ -581,9 +633,11 @@ function AdminsPanel({ admins, orgKey }) {
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 10 }}>
               {Object.entries(typeCounts).map(([t, c]) => (
-                <span key={t} style={{ fontSize: 10, padding: '1px 6px', borderRadius: 4,
+                <span key={t} style={{
+                  fontSize: 10, padding: '1px 6px', borderRadius: 4,
                   background: (ACTION_COLORS[t] || 'var(--muted)') + '22',
-                  color: ACTION_COLORS[t] || 'var(--muted)' }}>
+                  color: ACTION_COLORS[t] || 'var(--muted)',
+                }}>
                   {ACTION_LABELS[t] || t}: {c}
                 </span>
               ))}
@@ -606,16 +660,15 @@ function OrgDetail({ org }) {
   useEffect(() => { setTab('members'); }, [org.key]);
 
   const tabs = [
-    { key: 'members', label: `Miembros (${org.members.length})`,                              Icon: Users    },
-    { key: 'actions', label: `Acciones (${org.hireActions.length + org.adminActions.length})`, Icon: Activity },
-    { key: 'admins',  label: `Admins (${org.admins.length})`,                                  Icon: Shield   },
+    { key: 'members', label: `Miembros (${org.members.length})`,                               Icon: Users    },
+    { key: 'actions', label: `Acciones (${org.hireActions.length + org.adminActions.length})`,  Icon: Activity },
+    { key: 'admins',  label: `Admins (${org.admins.length})`,                                   Icon: Shield   },
   ];
 
   return (
     <div>
-      {/* Stats header */}
       <div style={{ marginBottom: 16 }}>
-        <h2 style={{ margin: '0 0 4px', fontSize: 20, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 8 }}>
+        <h2 style={{ margin: '0 0 4px', fontSize: 20, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text)' }}>
           <Flag size={16} color="var(--yellow)" /> {org.label}
         </h2>
         <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 14 }}>
@@ -625,19 +678,23 @@ function OrgDetail({ org }) {
           <StatPill label="Hoy"              value={org.stats.today}    color="var(--blue)"   />
           <StatPill label="7 días"           value={org.stats.week}     color="var(--cyan)"   />
           <StatPill label="14 días"          value={org.stats.twoWeeks} color="var(--yellow)" />
-          <StatPill label="30 días"          value={org.stats.month}    color="var(--orange, #e67e22)" />
-          <StatPill label="Total reclutados" value={org.stats.total}    color="var(--purple, #9b59b6)" />
+          <StatPill label="30 días"          value={org.stats.month}    color="#e67e22"        />
+          <StatPill label="Total reclutados" value={org.stats.total}    color="#9b59b6"        />
           <StatPill label="Activos"          value={org.stats.active}   color="var(--green)"  />
         </div>
       </div>
 
-      {/* Tabs */}
       <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: 16 }}>
         {tabs.map(({ key, label, Icon }) => (
           <button key={key} onClick={() => setTab(key)}
-            style={{ padding: '8px 16px', background: 'none', border: 'none', borderBottom: `2px solid ${tab === key ? 'var(--blue)' : 'transparent'}`,
-              cursor: 'pointer', color: tab === key ? 'var(--text)' : 'var(--muted)', fontWeight: tab === key ? 700 : 400,
-              fontSize: 13, display: 'flex', alignItems: 'center', gap: 5, marginBottom: -1 }}>
+            style={{
+              padding: '8px 16px', background: 'none', border: 'none',
+              borderBottom: `2px solid ${tab === key ? 'var(--blue)' : 'transparent'}`,
+              cursor: 'pointer',
+              color: tab === key ? 'var(--text)' : 'var(--muted)',
+              fontWeight: tab === key ? 700 : 400,
+              fontSize: 13, display: 'flex', alignItems: 'center', gap: 5, marginBottom: -1,
+            }}>
             <Icon size={13} /> {label}
           </button>
         ))}
@@ -660,26 +717,32 @@ export default function Organizaciones({ user }) {
     </div>
   );
 
-  const [orgs, setOrgs]           = useState([]);
-  const [loading, setLoading]     = useState(false);
-  const [progress, setProgress]   = useState('');
-  const [error, setError]         = useState('');
-  const [selected, setSelected]   = useState(null);
-  const [search, setSearch]       = useState('');
-  const [updated, setUpdated]     = useState(null);
-  const abortRef                  = useRef(null);
+  const [orgs, setOrgs]         = useState([]);
+  const [loading, setLoading]   = useState(false);
+  const [progress, setProgress] = useState('');
+  const [error, setError]       = useState('');
+  const [selected, setSelected] = useState(null);
+  const [search, setSearch]     = useState('');
+  const [updated, setUpdated]   = useState(null);
+  const abortRef                = useRef(null);
 
   async function load() {
     abortRef.current?.abort();
     const ctrl = new AbortController();
     abortRef.current = ctrl;
-    setLoading(true); setError(''); setProgress('Cargando reclutamientos...');
+    setLoading(true); setError(''); setProgress('Buscando registros…');
     try {
-      const [hireLogs, adminLogs] = await Promise.all([
-        fetchAllPages(HIRE_CHANNEL,  n => setProgress(`Reclutamientos: ${n}…`),    ctrl.signal),
-        fetchAllPages(ADMIN_CHANNEL, n => setProgress(`Acciones admin: ${n}…`),     ctrl.signal),
+      // Fetch all query terms in parallel
+      setProgress('Cargando reclutamientos…');
+      const [hireResults, adminResults] = await Promise.all([
+        Promise.all(HIRE_QUERIES.map(q => searchAllPages(q, HIRE_CHANNEL, ctrl.signal))),
+        Promise.all(ADMIN_QUERIES.map(q => searchAllPages(q, ADMIN_CHANNEL, ctrl.signal))),
       ]);
       if (ctrl.signal.aborted) return;
+
+      const hireLogs  = dedupById(hireResults.flat());
+      const adminLogs = dedupById(adminResults.flat());
+
       setProgress('Procesando…');
       const built = buildOrgs(hireLogs, adminLogs);
       setOrgs(built);
@@ -698,15 +761,15 @@ export default function Organizaciones({ user }) {
     ? orgs.filter(o => o.label.toLowerCase().includes(search.toLowerCase()) || o.key.includes(search.toLowerCase()))
     : orgs;
 
-  const activeOrg   = orgs.find(o => o.key === selected);
-  const totalRecr   = orgs.reduce((s, o) => s + o.stats.total, 0);
+  const activeOrg = orgs.find(o => o.key === selected);
+  const totalRecr = orgs.reduce((s, o) => s + o.stats.total, 0);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* Header */}
       <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: 17, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <h1 style={{ margin: 0, fontSize: 17, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text)' }}>
             <Flag size={15} /> Organizaciones Criminales
           </h1>
           {updated && (
@@ -727,10 +790,10 @@ export default function Organizaciones({ user }) {
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         {/* Sidebar */}
         <div style={{ width: 280, minWidth: 280, borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          <div style={{ padding: '10px 10px', borderBottom: '1px solid var(--border)' }}>
+          <div style={{ padding: '10px', borderBottom: '1px solid var(--border)' }}>
             <div style={{ position: 'relative' }}>
               <Search size={12} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)', pointerEvents: 'none' }} />
-              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar organización..."
+              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar organización…"
                 style={{ width: '100%', padding: '6px 8px 6px 26px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', fontSize: 12, boxSizing: 'border-box' }} />
             </div>
           </div>
@@ -738,25 +801,50 @@ export default function Organizaciones({ user }) {
             {loading && !orgs.length && (
               <div style={{ padding: 20, textAlign: 'center', color: 'var(--muted)', fontSize: 12 }}>{progress || 'Cargando…'}</div>
             )}
-            {visibleOrgs.map(org => (
-              <button key={org.key} onClick={() => setSelected(org.key)}
-                style={{ width: '100%', textAlign: 'left', background: selected === org.key ? 'var(--surface2)' : 'none',
-                  border: 'none', borderLeft: `3px solid ${selected === org.key ? 'var(--blue)' : 'transparent'}`,
-                  borderRadius: 8, padding: '10px 10px', cursor: 'pointer', marginBottom: 2 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
-                  <span style={{ fontWeight: 600, fontSize: 12, color: selected === org.key ? 'var(--text)' : 'var(--muted)' }}>{org.label}</span>
-                  <span style={{ fontSize: 10, color: 'var(--muted)', background: 'var(--surface)', padding: '1px 5px', borderRadius: 4 }}>{org.stats.total}</span>
-                </div>
-                <div style={{ display: 'flex', gap: 12 }}>
-                  {[['Hoy', org.stats.today, 'var(--blue)'], ['7D', org.stats.week, 'var(--cyan)'], ['Total', org.stats.total, 'var(--green)']].map(([l, v, c]) => (
-                    <div key={l} style={{ textAlign: 'center' }}>
-                      <div style={{ fontWeight: 700, fontSize: 14, color: c }}>{v}</div>
-                      <div style={{ fontSize: 9, color: 'var(--muted)', textTransform: 'uppercase' }}>{l}</div>
-                    </div>
-                  ))}
-                </div>
-              </button>
-            ))}
+            {visibleOrgs.map(org => {
+              const isActive = selected === org.key;
+              return (
+                <button key={org.key} onClick={() => setSelected(org.key)}
+                  style={{
+                    width: '100%', textAlign: 'left',
+                    background: isActive ? 'var(--surface2)' : 'transparent',
+                    border: 'none',
+                    borderLeft: `3px solid ${isActive ? 'var(--blue)' : 'transparent'}`,
+                    borderRadius: 6,
+                    padding: '10px 10px',
+                    cursor: 'pointer',
+                    marginBottom: 2,
+                    transition: 'background 0.1s',
+                  }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                    <span style={{
+                      fontWeight: 600, fontSize: 12,
+                      color: 'var(--text)',
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 180,
+                    }}>
+                      {org.label}
+                    </span>
+                    <span style={{
+                      fontSize: 10, color: 'var(--muted)',
+                      background: 'var(--surface)',
+                      padding: '1px 6px', borderRadius: 4,
+                      border: '1px solid var(--border)',
+                      flexShrink: 0,
+                    }}>
+                      {org.stats.total}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', gap: 14 }}>
+                    {[['Hoy', org.stats.today, 'var(--blue)'], ['7D', org.stats.week, 'var(--cyan)'], ['Total', org.stats.total, 'var(--green)']].map(([l, v, c]) => (
+                      <div key={l} style={{ textAlign: 'center' }}>
+                        <div style={{ fontWeight: 700, fontSize: 13, color: c, lineHeight: 1.2 }}>{v}</div>
+                        <div style={{ fontSize: 9, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{l}</div>
+                      </div>
+                    ))}
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </div>
 
