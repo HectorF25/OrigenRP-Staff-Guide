@@ -27,6 +27,7 @@ import ReportesIlegales from './sections/ReportesIlegales';
 import ReporteJugador from './sections/ReporteJugador';
 import DashboardAdmin from './sections/DashboardAdmin';
 import GiveItemMonitor from './sections/GiveItemMonitor';
+import Organizaciones from './sections/Organizaciones';
 
 const SECTIONS = [
   ConsultorIA,
@@ -49,6 +50,7 @@ const SECTIONS = [
   ReporteJugador,
   DashboardAdmin,
   GiveItemMonitor,
+  Organizaciones,
 ];
 
 export default function Page() {
@@ -82,6 +84,7 @@ export default function Page() {
     Active === ReporteJugador   ? { user } :
     Active === DashboardAdmin   ? { user } :
     Active === GiveItemMonitor  ? { user } :
+    Active === Organizaciones   ? { user } :
     {};
 
   return (
