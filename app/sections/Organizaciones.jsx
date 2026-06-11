@@ -119,13 +119,51 @@ async function lookupDiscordName(discordId, signal) {
 function buildOrgs(hireLogs, adminLogs) {
   const map = new Map();
 
-  function getOrg(key) {
+  /* ── Pass 0: build label→key map from "Modificar Configuración de Banda" logs ──
+     Some logs (e.g. Garage) store the band label ("la 76") instead of the key
+     ("la_76"). We use the config logs — which always have the real key — to build
+     a normalizer so those logs resolve to the correct org.                        */
+  const labelToKey   = {};   // label.toLowerCase() → canonical key
+  const configTs     = {};   // canonical key → latest timestamp seen
+  const keyToLabel   = {};   // canonical key → human label from last config log
+
+  for (const log of adminLogs) {
+    const embed = log.metadata?.embeds?.[0];
+    if (!embed?.title?.includes('Modificar Configuración')) continue;
+    const fields  = embed.fields ?? [];
+    const orgKey  = getField(fields, 'Banda');
+    const changes = getField(fields, 'Cambios');
+    const ts      = log.timestamp;
+    if (!orgKey || !changes) continue;
+    // Only keep the most recent config entry per org
+    if (configTs[orgKey] && new Date(ts) <= new Date(configTs[orgKey])) continue;
+    configTs[orgKey] = ts;
+    const lm = changes.match(/^Label:\s*(.+)$/m);
+    if (lm) {
+      const label = lm[1].trim();
+      labelToKey[label.toLowerCase()] = orgKey;
+      keyToLabel[orgKey] = label;
+    }
+  }
+
+  // Resolves a raw band value to the canonical org key.
+  // Handles both "la_76" (already a key) and "la 76" (label variant).
+  function normalizeKey(raw) {
+    if (!raw) return raw;
+    const trimmed = raw.trim();
+    return labelToKey[trimmed.toLowerCase()] ?? trimmed;
+  }
+
+  function getOrg(rawKey) {
+    const key = normalizeKey(rawKey);
     if (!key) return null;
     if (!map.has(key)) {
+      // Use real label from config log if available, else derive from key
+      const label = keyToLabel[key] ?? orgLabel(key);
       map.set(key, {
         key,
-        label:        orgLabel(key),
-        members:      [],   // { gameName, discordId, rank, timestamp, removed }
+        label,
+        members:      [],
         hireActions:  [],
         adminActions: [],
         removedNames: new Set(),
@@ -178,7 +216,6 @@ function buildOrgs(hireLogs, adminLogs) {
     const fields = embed.fields ?? [];
     const ts     = log.timestamp;
 
-    // Garage logs use "Jugador" field; admin actions use "Administrador"
     const isGarage  = title.includes('Garage');
     const actorTxt  = isGarage ? getField(fields, 'Jugador') : getField(fields, 'Administrador');
     const { gameName: actorName, discordId: actorDiscordId } = parsePlayer(actorTxt);
@@ -193,7 +230,6 @@ function buildOrgs(hireLogs, adminLogs) {
     } else if (title.includes('Remover Jugador')) {
       const orgKey     = getField(fields, 'Banda');
       const removedTxt = getField(fields, 'Jugador removido');
-      // Parse the same way as "Nuevo miembro" — field has "**Nombre:** NAME\n..."
       const { gameName: removedName } = parsePlayer(removedTxt);
       const org = getOrg(orgKey); if (!org) continue;
       if (removedName) org.removedNames.add(removedName.toLowerCase().trim());
@@ -212,11 +248,12 @@ function buildOrgs(hireLogs, adminLogs) {
       org.adminActions.push({ type: 'config', actorName, actorDiscordId, changes, timestamp: ts, isAdmin: true });
 
     } else if (isGarage) {
+      // Garage "Banda" field may contain the label ("la 76") — normalizeKey handles it
       const orgKey = getField(fields, 'Banda');
       const org = getOrg(orgKey); if (!org) continue;
       const plate  = getField(fields, 'Placa');
       const netId  = getField(fields, 'NetId');
-      const action = title.includes('Sacar') ? 'Sacar vehículo' : 'Guardar vehículo';
+      const action = title.includes('Sacar') ? 'Sacar vehículo' : title.includes('Guardar') ? 'Guardar vehículo' : 'Garage';
       org.adminActions.push({ type: 'garage', actorName, actorDiscordId, action, plate, netId, timestamp: ts, isAdmin: false });
     }
   }
@@ -438,14 +475,17 @@ function MembersTable({ members, orgKey }) {
           <tbody>
             {rows.map((m, i) => (
               <tr key={i} style={{ background: m.removed ? 'rgba(231,76,60,0.05)' : 'transparent' }}>
-                <td style={td}>{m.gameName || '—'}</td>
-                <td style={{ ...td, color: 'var(--muted)' }}>
+                {/* Nombre en juego = lookup result (nombre real en el servidor) */}
+                <td style={td}>
                   {m.discordId
                     ? names[m.discordId] !== undefined
                       ? (names[m.discordId] || '—')
                       : <span style={{ opacity: 0.4, fontSize: 11 }}>cargando…</span>
                     : '—'}
                 </td>
+                {/* Discord = nombre de Discord del jugador (campo **Nombre:** del embed) */}
+                <td style={{ ...td, color: 'var(--muted)' }}>{m.gameName || '—'}</td>
+                {/* Discord ID */}
                 <td style={td}>
                   {m.discordId
                     ? <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -787,9 +827,9 @@ export default function Organizaciones({ user }) {
       </div>
 
       {/* Body */}
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden', minWidth: 0 }}>
         {/* Sidebar */}
-        <div style={{ width: 280, minWidth: 280, borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={{ width: 280, minWidth: 280, maxWidth: 280, borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <div style={{ padding: '10px', borderBottom: '1px solid var(--border)' }}>
             <div style={{ position: 'relative' }}>
               <Search size={12} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)', pointerEvents: 'none' }} />
@@ -804,41 +844,52 @@ export default function Organizaciones({ user }) {
             {visibleOrgs.map(org => {
               const isActive = selected === org.key;
               return (
-                <button key={org.key} onClick={() => setSelected(org.key)}
+                <button
+                  key={org.key}
+                  onClick={() => setSelected(org.key)}
+                  className="org-card"
+                  data-active={isActive}
                   style={{
                     width: '100%', textAlign: 'left',
-                    background: isActive ? 'var(--surface2)' : 'transparent',
-                    border: 'none',
-                    borderLeft: `3px solid ${isActive ? 'var(--blue)' : 'transparent'}`,
+                    background: isActive ? 'var(--surface2)' : 'var(--surface)',
+                    border: `1px solid ${isActive ? 'var(--blue)' : 'var(--border)'}`,
+                    borderLeft: `3px solid ${isActive ? 'var(--blue)' : 'var(--border)'}`,
                     borderRadius: 6,
-                    padding: '10px 10px',
+                    padding: '9px 10px',
                     cursor: 'pointer',
-                    marginBottom: 2,
-                    transition: 'background 0.1s',
+                    marginBottom: 4,
+                    transition: 'border-color 0.15s, background 0.15s',
                   }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 7 }}>
                     <span style={{
-                      fontWeight: 600, fontSize: 12,
-                      color: 'var(--text)',
-                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 180,
+                      fontWeight: 700,
+                      fontSize: 12,
+                      color: isActive ? 'var(--text)' : '#c8cdd4',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      maxWidth: 175,
                     }}>
                       {org.label}
                     </span>
                     <span style={{
-                      fontSize: 10, color: 'var(--muted)',
-                      background: 'var(--surface)',
-                      padding: '1px 6px', borderRadius: 4,
+                      fontSize: 10,
+                      fontWeight: 600,
+                      color: isActive ? 'var(--blue)' : 'var(--muted)',
+                      background: 'var(--surface2)',
+                      padding: '1px 6px',
+                      borderRadius: 4,
                       border: '1px solid var(--border)',
                       flexShrink: 0,
                     }}>
                       {org.stats.total}
                     </span>
                   </div>
-                  <div style={{ display: 'flex', gap: 14 }}>
-                    {[['Hoy', org.stats.today, 'var(--blue)'], ['7D', org.stats.week, 'var(--cyan)'], ['Total', org.stats.total, 'var(--green)']].map(([l, v, c]) => (
+                  <div style={{ display: 'flex', gap: 16 }}>
+                    {[['HOY', org.stats.today, 'var(--blue)'], ['7D', org.stats.week, 'var(--cyan)'], ['TOTAL', org.stats.total, 'var(--green)']].map(([l, v, c]) => (
                       <div key={l} style={{ textAlign: 'center' }}>
-                        <div style={{ fontWeight: 700, fontSize: 13, color: c, lineHeight: 1.2 }}>{v}</div>
-                        <div style={{ fontSize: 9, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{l}</div>
+                        <div style={{ fontWeight: 700, fontSize: 14, color: c, lineHeight: 1.1 }}>{v}</div>
+                        <div style={{ fontSize: 9, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.04em', marginTop: 1 }}>{l}</div>
                       </div>
                     ))}
                   </div>
@@ -849,7 +900,7 @@ export default function Organizaciones({ user }) {
         </div>
 
         {/* Detail */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
+        <div style={{ flex: 1, minWidth: 0, overflowY: 'auto', overflowX: 'hidden', padding: 20 }}>
           {activeOrg
             ? <OrgDetail org={activeOrg} />
             : !loading && <div style={{ textAlign: 'center', color: 'var(--muted)', paddingTop: 60 }}>Selecciona una organización.</div>
@@ -857,7 +908,11 @@ export default function Organizaciones({ user }) {
         </div>
       </div>
 
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .org-card:hover { background: var(--surface2) !important; border-color: var(--blue) !important; }
+        .org-card:hover span:first-child { color: var(--text) !important; }
+      `}</style>
     </div>
   );
 }
