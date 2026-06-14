@@ -8,6 +8,7 @@ import { FM_PROJECT_ID, fmtTime, fmtTimeRelative } from '@/lib/fivemonitor';
 const JAIL_CH_ID    = '69d3a41db036cafed646d85a';
 const VALID_TITLES  = new Set(['Items Removidos - Jail', 'Jugador Offline Encarcelado - Jail']);
 const ALLOWED_ROLE  = '1487429315992879114';
+const SUPER_ROLE    = '1484372151111782510';
 const PAGE_LIMIT    = 50;
 const JAILS_PER_PAGE = 15;
 
@@ -59,6 +60,7 @@ function avatarLetter(name) {
 
 function canAccess(user) {
   if (!user) return false;
+  if (Array.isArray(user.roles) && user.roles.includes(SUPER_ROLE)) return true;
   if (ADMINS.some(a => a.id === user.id)) return true;
   return Array.isArray(user.roles) && user.roles.includes(ALLOWED_ROLE);
 }

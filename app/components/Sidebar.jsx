@@ -4,6 +4,7 @@ import {
 } from 'lucide-react';
 import { SERVER_ICON } from '@/lib/constants';
 
+const SUPER_ROLE              = '1484372151111782510';
 const SUPERVISOR_ALLOWED_ROLE = '1484372153108533308';
 const SUPERVISOR_ALLOWED_IDS  = new Set(['343822757911330817', '752975491228500019', '1484372153108533308']);
 const ILEGALES_ALLOWED_IDS  = new Set(['343822757911330817', '752975491228500019', '1484372153108533308']);
@@ -19,24 +20,33 @@ const ILEGALES_ADMIN_IDS    = new Set([
   '979514530721845328',
 ]);
 
+function hasSuper(user) {
+  return !!user && Array.isArray(user.roles) && user.roles.includes(SUPER_ROLE);
+}
+
 function canSeeReportes(user) {
   if (!user) return false;
+  if (hasSuper(user)) return true;
   if (ILEGALES_ALLOWED_IDS.has(user.id)) return true;
   return Array.isArray(user.roles) && user.roles.includes(ILEGALES_ALLOWED_ROLE);
 }
 
 function canSeeGiveItemMonitor(user) {
   if (!user) return false;
+  if (hasSuper(user)) return true;
   if (SUPERVISOR_ALLOWED_IDS.has(user.id)) return true;
   return Array.isArray(user.roles) && user.roles.includes(SUPERVISOR_ALLOWED_ROLE);
 }
 
 function canSeeReporteJugador(user) {
-  return !!user && COORD_IDS.has(user.id);
+  if (!user) return false;
+  if (hasSuper(user)) return true;
+  return COORD_IDS.has(user.id);
 }
 
 function canSeeDashboardAdmin(user) {
   if (!user) return false;
+  if (hasSuper(user)) return true;
   if (ILEGALES_ADMIN_IDS.has(user.id)) return true;
   return Array.isArray(user.roles) && user.roles.includes(ILEGALES_ALLOWED_ROLE);
 }
