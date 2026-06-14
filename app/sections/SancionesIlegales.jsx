@@ -1,30 +1,38 @@
 import {
-  Gavel, AlertTriangle, Clock, MapPin, Zap, PhoneOff,
-  Shirt, Package, Check, X, Shield
+  Gavel, AlertTriangle, MapPin, Check, X, Shield, Info
 } from 'lucide-react';
 import { OC_SANCIONES_TABLE, ZONA_DOMINACION } from '@/lib/sections-data';
+
+function ZonaRow({ type, text }) {
+  const cls = type === 'ok' ? 'nrow-ok' : type === 'x' ? 'nrow-x' : type === 'warn' ? 'nrow-warn' : 'nrow-info';
+  const icon = type === 'ok' ? <Check size={13} /> : type === 'x' ? <X size={13} /> : type === 'warn' ? <AlertTriangle size={13} /> : <Info size={13} />;
+  return (
+    <div className={`nrow ${cls}`}>
+      <span className="ni">{icon}</span><span>{text}</span>
+    </div>
+  );
+}
 
 export default function SancionesIlegales() {
   return (
     <div className="section active">
       <div className="pg-header">
         <div className="pg-title">Sanciones Ilegales OC</div>
-        <div className="pg-sub">Tiempos fijos — no aplica multiplicador ×2</div>
+        <div className="pg-sub">Tabla oficial de sanciones para organizaciones criminales</div>
       </div>
 
       <div className="alert al-y" style={{ marginBottom: 12 }}>
         <span className="al-icon"><AlertTriangle size={14} /></span>
         <span>
-          Las sanciones de esta tabla tienen tiempos <strong>fijos</strong> establecidos para organizaciones criminales.
-          Cualquier sanción general <strong>fuera de esta tabla</strong> sigue aplicando el
-          multiplicador <strong>×2</strong> habitual de OC.
+          3 strikes sin rectificar = <strong>warn a la organización</strong>. A los 3 warns, la organización es desmantelada.
+          Los strikes expiran cada <strong>2 semanas</strong> y los warns cada <strong>mes</strong>.
         </span>
       </div>
 
       <div className="card cl-red" style={{ marginBottom: 8 }}>
         <div className="card-header">
           <div className="card-icon ci-red"><Gavel size={15} /></div>
-          <div className="card-title ct-red">Tabla de sanciones OC — tiempos fijos</div>
+          <div className="card-title ct-red">Tabla de sanciones OC</div>
         </div>
         <table className="tbl">
           <thead>
@@ -40,8 +48,8 @@ export default function SancionesIlegales() {
                 <td>
                   <span className={`pill ${
                     sancion.startsWith('Ban') ? 'pr' :
-                    parseInt(sancion) >= 300 ? 'pr' :
-                    parseInt(sancion) >= 180 ? 'py' : 'pg'
+                    sancion === 'Lo valorará el staff' ? 'py' :
+                    parseInt(sancion) >= 90 ? 'py' : 'pg'
                   }`}>
                     {sancion}
                   </span>
@@ -57,46 +65,9 @@ export default function SancionesIlegales() {
           <div className="card-icon ci-purple"><MapPin size={15} /></div>
           <div className="card-title ct-purple">Zona de Dominación</div>
         </div>
-        <div className="nrow nrow-warn">
-          <span className="ni"><Zap size={13} /></span>
-          <span>{ZONA_DOMINACION[0]}</span>
-        </div>
-        <div className="nrow nrow-info">
-          <span className="ni"><Shield size={13} /></span>
-          <span>{ZONA_DOMINACION[1]}</span>
-        </div>
-        <div className="nrow nrow-info">
-          <span className="ni"><Clock size={13} /></span>
-          <span>{ZONA_DOMINACION[2]}</span>
-        </div>
-        <div className="nrow nrow-ok">
-          <span className="ni"><Check size={13} /></span>
-          <span>{ZONA_DOMINACION[3]}</span>
-        </div>
-        <div className="nrow nrow-ok">
-          <span className="ni"><Check size={13} /></span>
-          <span>{ZONA_DOMINACION[4]}</span>
-        </div>
-        <div className="nrow nrow-ok">
-          <span className="ni"><Check size={13} /></span>
-          <span>{ZONA_DOMINACION[5]}</span>
-        </div>
-        <div className="nrow nrow-x">
-          <span className="ni"><X size={13} /></span>
-          <span>{ZONA_DOMINACION[6]}</span>
-        </div>
-        <div className="nrow nrow-x">
-          <span className="ni"><X size={13} /></span>
-          <span>{ZONA_DOMINACION[7]}</span>
-        </div>
-        <div className="nrow nrow-x">
-          <span className="ni"><PhoneOff size={13} /></span>
-          <span>{ZONA_DOMINACION[8]}</span>
-        </div>
-        <div className="nrow nrow-warn">
-          <span className="ni"><Clock size={13} /></span>
-          <span>{ZONA_DOMINACION[9]}</span>
-        </div>
+        {ZONA_DOMINACION.map((row, i) => (
+          <ZonaRow key={i} type={row.type} text={row.text} />
+        ))}
       </div>
     </div>
   );

@@ -12,7 +12,6 @@ import Comandos from './sections/Comandos';
 import BotTickets from './sections/BotTickets';
 import ItemsArmas from './sections/ItemsArmas';
 import Sanciones from './sections/Sanciones';
-import OcMafias from './sections/OcMafias';
 import Ilegales from './sections/Ilegales';
 import Robos from './sections/Robos';
 import NormaStaff from './sections/NormaStaff';
@@ -28,6 +27,8 @@ import ReporteJugador from './sections/ReporteJugador';
 import DashboardAdmin from './sections/DashboardAdmin';
 import GiveItemMonitor from './sections/GiveItemMonitor';
 import Organizaciones from './sections/Organizaciones';
+import PuntosCalientes from './sections/PuntosCalientes';
+import ReportesGenerales from './sections/ReportesGenerales';
 
 const SECTIONS = [
   ConsultorIA,
@@ -35,7 +36,6 @@ const SECTIONS = [
   BotTickets,
   ItemsArmas,
   Sanciones,
-  OcMafias,
   Ilegales,
   Robos,
   NormaStaff,
@@ -51,6 +51,8 @@ const SECTIONS = [
   DashboardAdmin,
   GiveItemMonitor,
   Organizaciones,
+  PuntosCalientes,
+  ReportesGenerales,
 ];
 
 export default function Page() {
@@ -83,8 +85,9 @@ export default function Page() {
     Active === ReportesIlegales ? { user } :
     Active === ReporteJugador   ? { user } :
     Active === DashboardAdmin   ? { user } :
-    Active === GiveItemMonitor  ? { user } :
-    Active === Organizaciones   ? { user } :
+    Active === GiveItemMonitor   ? { user } :
+    Active === Organizaciones    ? { user } :
+    Active === ReportesGenerales ? { user } :
     {};
 
   return (

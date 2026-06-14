@@ -1,6 +1,6 @@
 import {
   Sparkles, Terminal, Bot, PackageOpen, Scale, Users, Building2,
-  Landmark, Shield, BookOpen, Target, Layers, FileText, Activity, Cctv, Gavel, BarChart2, Search, LayoutDashboard, Gift, Swords
+  Landmark, Shield, BookOpen, Target, Layers, FileText, Activity, Cctv, Gavel, BarChart2, Search, LayoutDashboard, Gift, Swords, Flame, ClipboardList
 } from 'lucide-react';
 import { SERVER_ICON } from '@/lib/constants';
 
@@ -50,31 +50,32 @@ const BASE_GROUPS = [
   ] },
   { title: 'Normativa',    items: [
     { i: 4,  icon: Scale,       label: 'Sanciones' },
-    { i: 5,  icon: Users,       label: 'OC / Mafias ×2' },
-    { i: 6,  icon: Building2,   label: 'Ilegales' },
-    { i: 15, icon: Gavel,       label: 'Sanciones Ilegales' },
-    { i: 7,  icon: Landmark,    label: 'Robos' },
-    { i: 8,  icon: Shield,      label: 'Norma Staff' },
-    { i: 12, icon: FileText,    label: 'Normativa Completa' }
+    { i: 5,  icon: Building2,   label: 'Ilegales' },
+    { i: 14, icon: Gavel,       label: 'Sanciones Ilegales' },
+    { i: 20, icon: Flame,       label: 'Puntos Calientes' },
+    { i: 6,  icon: Landmark,    label: 'Robos' },
+    { i: 7,  icon: Shield,      label: 'Norma Staff' },
+    { i: 11, icon: FileText,    label: 'Normativa Completa' }
   ] },
   { title: 'Estudio',      items: [
-    { i: 9,  icon: BookOpen,    label: 'Conceptos RP' },
-    { i: 10, icon: Target,      label: 'Casos Prácticos' },
-    { i: 11, icon: Layers,      label: 'Flashcards' }
+    { i: 8,  icon: BookOpen,    label: 'Conceptos RP' },
+    { i: 9,  icon: Target,      label: 'Casos Prácticos' },
+    { i: 10, icon: Layers,      label: 'Flashcards' }
   ] },
   { title: 'Servidor',     items: [
-    { i: 13, icon: Activity,    label: 'Logs' },
-    { i: 14, icon: Cctv,        label: 'Monitor' },
+    { i: 12, icon: Activity,    label: 'Logs' },
+    { i: 13, icon: Cctv,        label: 'Monitor' },
   ] }
 ];
 
 export default function Sidebar({ page, onPick, open, user }) {
   const ilegalesItems = [];
-  if (canSeeDashboardAdmin(user))  ilegalesItems.push({ i: 18, icon: LayoutDashboard, label: 'Mi Dashboard'       });
-  if (canSeeReportes(user))        ilegalesItems.push({ i: 16, icon: BarChart2,       label: 'Reportes Ilegales' });
-  if (canSeeReporteJugador(user))  ilegalesItems.push({ i: 17, icon: Search,          label: 'Reporte Jugador'   });
-  if (canSeeGiveItemMonitor(user)) ilegalesItems.push({ i: 19, icon: Gift,            label: 'GiveItem Monitor'  });
-  if (canSeeGiveItemMonitor(user)) ilegalesItems.push({ i: 20, icon: Swords,          label: 'Organizaciones'    });
+  if (canSeeDashboardAdmin(user))  ilegalesItems.push({ i: 17, icon: LayoutDashboard, label: 'Mi Dashboard'       });
+  if (canSeeReportes(user))        ilegalesItems.push({ i: 15, icon: BarChart2,       label: 'Reportes Ilegales' });
+  if (canSeeReportes(user))        ilegalesItems.push({ i: 21, icon: ClipboardList,   label: 'Reportes Generales' });
+  if (canSeeReporteJugador(user))  ilegalesItems.push({ i: 16, icon: Search,          label: 'Reporte Jugador'   });
+  if (canSeeGiveItemMonitor(user)) ilegalesItems.push({ i: 18, icon: Gift,            label: 'GiveItem Monitor'  });
+  if (canSeeGiveItemMonitor(user)) ilegalesItems.push({ i: 19, icon: Swords,          label: 'Organizaciones'    });
 
   const navGroups = ilegalesItems.length > 0
     ? [...BASE_GROUPS, { title: 'Ilegales', items: ilegalesItems }]
