@@ -6,12 +6,18 @@ import LogEntry, { StatCard } from '@/app/components/LogEntry';
 import { FM_PROJECT_ID } from '@/lib/fivemonitor';
 
 // ─── Configuración ────────────────────────────────────────────────────────────
-const BUG_CH_ID    = '69d39636438bd79dd2a1831b';
+const BUG_CH_ID    = '69d39636438bd79dd2a1831b'; // canal "maleteros-logs"
 const ALLOWED_IDS  = new Set(['343822757911330817', '752975491228500019']);
 const ALLOWED_ROLE = '1487429315992879114';
 const SUPER_ROLE   = '1484372151111782510';
-const RECENT_LIMIT = 100;
+
+const DAYS_BACK   = 3;          // ventana de tiempo para la vista "recientes"
+const PAGE_LIMIT  = 100;        // límite por página pedido
+const MAX_PAGES   = 400;        // tope de seguridad (~40k logs) para no colgar el navegador
 const SEARCH_LIMIT = 100;
+
+// Tipos de almacenamiento que nos interesan en esta página.
+const TRACKED_TYPES = ['MALETERO', 'GUANTERA'];
 
 function canAccess(user) {
   if (!user) return false;
@@ -54,7 +60,7 @@ function extractDiscordId(log) {
   const text = fullText(log);
   const mention = text.match(/<@!?(\d{15,21})>/);
   if (mention) return mention[1];
-  // Formato típico en "Identificadores del Jugador": "Discord: discord:1429728133157748798"
+  // Formato real en "Identificadores del Jugador": "**Discord:** discord:762730553480708096"
   const tag = text.match(/discord\s*:\s*(\d{15,21})/i);
   if (tag) return tag[1];
   const named = findByName(log, /discord/i);
@@ -65,16 +71,16 @@ function extractDiscordId(log) {
   return null;
 }
 
-// Filtra solo las acciones del MALETERO (excluye GUANTERA y otros tipos de almacenamiento).
 function extractStorageType(log) {
   const raw = findByName(log, /tipo de almacenamiento|almacenamiento/i);
   return (raw || '').trim().toUpperCase();
 }
 
-function isMaletero(log) {
+// Solo nos interesan acciones de GUANTERA o MALETERO.
+function isTrackedStorage(log) {
   const type = extractStorageType(log);
-  if (type) return type.includes('MALETERO') || type.includes('TRUNK');
-  return /maletero|trunk/i.test(fullText(log));
+  if (type) return TRACKED_TYPES.some(t => type.includes(t));
+  return /maletero|guantera/i.test(fullText(log));
 }
 
 function plateLength(plate) {
@@ -96,6 +102,10 @@ function matchesTerm(log, term) {
   return fullText(log).toLowerCase().includes(term.toLowerCase());
 }
 
+function logTime(log) {
+  return new Date(log.timestamp ?? log.createdAt ?? 0).getTime();
+}
+
 // ─── Componente principal ─────────────────────────────────────────────────────
 export default function MaleterosBug({ user }) {
   const hasAccess = canAccess(user);
@@ -104,41 +114,78 @@ export default function MaleterosBug({ user }) {
   const [query, setQuery] = useState('');
   // Esta página SIEMPRE muestra solo matrículas bug (no hay opción de ver todas).
 
-  const [recentLogs, setRecentLogs]             = useState([]);
-  const [recentPage, setRecentPage]             = useState(1);
-  const [recentTotalPages, setRecentTotalPages] = useState(1);
-  const [recentTotalCount, setRecentTotalCount] = useState(0);
-  const [loadingRecent, setLoadingRecent]       = useState(false);
-  const [recentError, setRecentError]           = useState(null);
+  const [recentLogs, setRecentLogs]       = useState([]);
+  const [loadingRecent, setLoadingRecent] = useState(false);
+  const [recentError, setRecentError]     = useState(null);
+  const [recentProgress, setRecentProgress] = useState(0); // página que se está cargando
+  const [recentTruncated, setRecentTruncated] = useState(false);
 
   const [searchResults, setSearchResults] = useState([]);
   const [searching, setSearching]         = useState(false);
   const [searchError, setSearchError]     = useState(null);
   const [searchedTerm, setSearchedTerm]   = useState('');
 
-  const abortRef = useRef(null);
+  const loadAbortRef   = useRef(null);
+  const searchAbortRef = useRef(null);
 
-  async function loadRecent(page = 1) {
+  async function loadRecentWindow() {
+    if (loadAbortRef.current) loadAbortRef.current.abort();
+    const ctrl = new AbortController();
+    loadAbortRef.current = ctrl;
+
     setLoadingRecent(true);
     setRecentError(null);
+    setRecentTruncated(false);
+    setRecentProgress(0);
+
     try {
-      const res = await fetch(`/api/fm/v1/channels/${BUG_CH_ID}/logs?page=${page}&limit=${RECENT_LIMIT}`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const raw = await res.json();
-      const entries = Array.isArray(raw) ? raw : (raw.logs ?? []);
-      setRecentLogs(entries);
-      setRecentTotalCount(Array.isArray(raw) ? entries.length : (raw.totalCount ?? entries.length));
-      setRecentTotalPages(Array.isArray(raw) ? 1 : (raw.totalPages ?? 1));
-      setRecentPage(page);
+      const cutoff = Date.now() - DAYS_BACK * 24 * 60 * 60 * 1000;
+      const seen = new Set();
+      const all  = [];
+      let page = 1;
+
+      while (page <= MAX_PAGES) {
+        if (ctrl.signal.aborted) throw new DOMException('Aborted', 'AbortError');
+        setRecentProgress(page);
+
+        const res = await fetch(`/api/fm/v1/channels/${BUG_CH_ID}/logs?page=${page}&limit=${PAGE_LIMIT}`, { signal: ctrl.signal });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const raw = await res.json();
+        const entries = Array.isArray(raw) ? raw : (raw.logs ?? []);
+        if (entries.length === 0) break;
+
+        let reachedCutoff = false;
+        for (const log of entries) {
+          const ts = logTime(log);
+          if (ts < cutoff) { reachedCutoff = true; continue; }
+          if (seen.has(log._id)) continue;
+          seen.add(log._id);
+          all.push(log);
+        }
+
+        if (reachedCutoff) break;
+        page++;
+        if (page <= MAX_PAGES) await new Promise(r => setTimeout(r, 50));
+      }
+
+      if (page > MAX_PAGES) setRecentTruncated(true);
+
+      all.sort((a, b) => logTime(b) - logTime(a));
+      setRecentLogs(all);
     } catch (e) {
-      setRecentError(e.message);
+      if (e.name !== 'AbortError') setRecentError(e.message);
     } finally {
       setLoadingRecent(false);
     }
   }
 
+  function cancelRecentLoad() {
+    if (loadAbortRef.current) loadAbortRef.current.abort();
+    setLoadingRecent(false);
+  }
+
   useEffect(() => {
-    if (hasAccess) loadRecent(1);
+    if (hasAccess) loadRecentWindow();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasAccess]);
 
@@ -147,9 +194,9 @@ export default function MaleterosBug({ user }) {
     const term = query.trim();
     if (!term || searching) return;
 
-    if (abortRef.current) abortRef.current.abort();
+    if (searchAbortRef.current) searchAbortRef.current.abort();
     const ctrl = new AbortController();
-    abortRef.current = ctrl;
+    searchAbortRef.current = ctrl;
 
     setSearching(true);
     setSearchError(null);
@@ -178,7 +225,7 @@ export default function MaleterosBug({ user }) {
         if (page <= totalPages) await new Promise(r => setTimeout(r, 100));
       }
 
-      all.sort((a, b) => new Date(b.timestamp ?? b.createdAt ?? 0) - new Date(a.timestamp ?? a.createdAt ?? 0));
+      all.sort((a, b) => logTime(b) - logTime(a));
       setSearchResults(all);
     } catch (e) {
       if (e.name !== 'AbortError') setSearchError(e.message);
@@ -188,7 +235,7 @@ export default function MaleterosBug({ user }) {
   }
 
   function clearSearch() {
-    if (abortRef.current) abortRef.current.abort();
+    if (searchAbortRef.current) searchAbortRef.current.abort();
     setMode('recent');
     setQuery('');
     setSearchResults([]);
@@ -217,13 +264,13 @@ export default function MaleterosBug({ user }) {
 
   const isSearchMode = mode === 'search';
   const baseLogs    = isSearchMode ? searchResults : recentLogs;
-  const maleteroLogs = baseLogs.filter(isMaletero);
-  const annotated = maleteroLogs.map(log => {
+  const trackedLogs = baseLogs.filter(isTrackedStorage);
+  const annotated = trackedLogs.map(log => {
     const plate = extractPlate(log);
     return { log, plate, suspicious: isSuspiciousPlate(plate) };
   });
-  const visible          = annotated.filter(a => a.suspicious);
-  const suspiciousCount  = visible.length;
+  const visible         = annotated.filter(a => a.suspicious);
+  const suspiciousCount = visible.length;
   const loading = isSearchMode ? searching : loadingRecent;
   const error   = isSearchMode ? searchError : recentError;
 
@@ -237,7 +284,7 @@ export default function MaleterosBug({ user }) {
             Maleteros Bug
           </div>
           <div className="pg-sub">
-            Solo matrículas bug de #maleteros-bug (más de 7 caracteres, excepto VIP) · solo acciones de MALETERO · búsqueda por ID de Discord
+            Solo matrículas bug (más de 7 caracteres, excepto VIP) · guantera y maletero · últimos {DAYS_BACK} días · búsqueda por ID de Discord
           </div>
         </div>
       </div>
@@ -298,10 +345,9 @@ export default function MaleterosBug({ user }) {
 
       {/* Stats */}
       <div className="rob-grid" style={{ marginBottom: 14 }}>
-        <StatCard label={isSearchMode ? 'Resultados' : 'Cargados'} value={baseLogs.length} color="var(--text)" />
-        <StatCard label="Acciones de maletero" value={maleteroLogs.length} color="var(--text2)" />
+        <StatCard label={isSearchMode ? 'Resultados' : `Cargados (${DAYS_BACK}d)`} value={baseLogs.length} color="var(--text)" />
+        <StatCard label="Guantera/Maletero" value={trackedLogs.length} color="var(--text2)" />
         <StatCard label="Matrículas bug" value={suspiciousCount} color="var(--red)" />
-        {!isSearchMode && <StatCard label="Total en canal" value={recentTotalCount} color="var(--text3)" />}
       </div>
 
       {/* Error */}
@@ -316,7 +362,16 @@ export default function MaleterosBug({ user }) {
       {loading && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--text3)', fontSize: 13, padding: '20px 0' }}>
           <span className="spinner" style={{ width: 16, height: 16 }} />
-          {isSearchMode ? `Buscando "${searchedTerm}" en #maleteros-bug…` : 'Cargando reportes recientes…'}
+          <span>
+            {isSearchMode
+              ? `Buscando "${searchedTerm}" en #maleteros-bug…`
+              : `Cargando últimos ${DAYS_BACK} días de guantera y maletero… (página ${recentProgress})`}
+          </span>
+          {!isSearchMode && (
+            <button type="button" className="btns" style={{ fontSize: 11, padding: '4px 10px', marginLeft: 'auto' }} onClick={cancelRecentLoad}>
+              Cancelar
+            </button>
+          )}
         </div>
       )}
 
@@ -325,10 +380,10 @@ export default function MaleterosBug({ user }) {
         <div className="norm-empty">
           {isSearchMode
             ? `Sin resultados para "${searchedTerm}".`
-            : maleteroLogs.length === 0 && baseLogs.length > 0
-              ? 'No hay acciones de MALETERO en los reportes cargados (solo guantera u otros). Actualiza para revisar los más recientes.'
-              : maleteroLogs.length > 0
-                ? 'No se detectaron matrículas bug entre las acciones de maletero cargadas.'
+            : trackedLogs.length === 0 && baseLogs.length > 0
+              ? 'No hay acciones de guantera/maletero en los últimos días cargados.'
+              : trackedLogs.length > 0
+                ? 'No se detectaron matrículas bug en guantera/maletero de los últimos días.'
                 : 'No hay reportes en este canal.'}
         </div>
       )}
@@ -353,22 +408,24 @@ export default function MaleterosBug({ user }) {
         </div>
       ))}
 
-      {/* Paginación (solo modo recientes) */}
-      {!isSearchMode && !loading && !error && recentTotalPages > 1 && (
+      {/* Pie (solo modo recientes) */}
+      {!isSearchMode && !loading && !error && (
         <div style={{
           marginTop: 10, paddingTop: 12, borderTop: '1px solid var(--border)',
-          display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap',
+          display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
         }}>
-          <button className="btns" style={{ padding: '4px 10px', fontSize: 12, opacity: recentPage <= 1 ? .4 : 1 }} disabled={recentPage <= 1} onClick={() => loadRecent(recentPage - 1)}>←</button>
-          <span style={{ fontSize: 12, color: 'var(--text3)' }}>Página {recentPage} de {recentTotalPages}</span>
-          <button className="btns" style={{ padding: '4px 10px', fontSize: 12, opacity: recentPage >= recentTotalPages ? .4 : 1 }} disabled={recentPage >= recentTotalPages} onClick={() => loadRecent(recentPage + 1)}>→</button>
           <button
             className="btns"
-            style={{ padding: '4px 10px', fontSize: 12, marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 5 }}
-            onClick={() => loadRecent(recentPage)}
+            style={{ fontSize: 12, padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 5 }}
+            onClick={loadRecentWindow}
           >
-            <RefreshCw size={11} /> Actualizar
+            <RefreshCw size={11} /> Actualizar (últimos {DAYS_BACK} días)
           </button>
+          {recentTruncated && (
+            <span style={{ fontSize: 11, color: 'var(--yellow)' }}>
+              ⚠ Se alcanzó el límite de páginas antes de cubrir los {DAYS_BACK} días completos. Algunos registros antiguos pueden faltar.
+            </span>
+          )}
         </div>
       )}
     </div>
