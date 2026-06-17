@@ -1,6 +1,6 @@
 import {
   Sparkles, Terminal, Bot, PackageOpen, Scale, Users, Building2,
-  Landmark, Shield, BookOpen, Target, Layers, FileText, Activity, Cctv, Gavel, BarChart2, Search, LayoutDashboard, Gift, Swords, Flame, ClipboardList
+  Landmark, Shield, BookOpen, Target, Layers, FileText, Activity, Cctv, Gavel, BarChart2, Search, LayoutDashboard, Gift, Swords, Flame, ClipboardList, Car
 } from 'lucide-react';
 import { SERVER_ICON } from '@/lib/constants';
 
@@ -51,6 +51,13 @@ function canSeeDashboardAdmin(user) {
   return Array.isArray(user.roles) && user.roles.includes(ILEGALES_ALLOWED_ROLE);
 }
 
+function canSeeMaleterosBug(user) {
+  if (!user) return false;
+  if (hasSuper(user)) return true;
+  if (SUPERVISOR_ALLOWED_IDS.has(user.id)) return true;
+  return Array.isArray(user.roles) && user.roles.includes(SUPERVISOR_ALLOWED_ROLE);
+}
+
 const BASE_GROUPS = [
   { title: 'Inteligencia', items: [{ i: 0,  icon: Sparkles,    label: 'Consultor IA' }] },
   { title: 'Comandos',     items: [
@@ -86,6 +93,7 @@ export default function Sidebar({ page, onPick, open, user }) {
   if (canSeeReporteJugador(user))  ilegalesItems.push({ i: 16, icon: Search,          label: 'Reporte Jugador'   });
   if (canSeeGiveItemMonitor(user)) ilegalesItems.push({ i: 18, icon: Gift,            label: 'GiveItem Monitor'  });
   if (canSeeGiveItemMonitor(user)) ilegalesItems.push({ i: 19, icon: Swords,          label: 'Organizaciones'    });
+  if (canSeeMaleterosBug(user))    ilegalesItems.push({ i: 22, icon: Car,             label: 'Maleteros Bug'     });
 
   const navGroups = ilegalesItems.length > 0
     ? [...BASE_GROUPS, { title: 'Ilegales', items: ilegalesItems }]

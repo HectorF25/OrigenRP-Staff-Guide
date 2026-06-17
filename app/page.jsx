@@ -29,6 +29,7 @@ import GiveItemMonitor from './sections/GiveItemMonitor';
 import Organizaciones from './sections/Organizaciones';
 import PuntosCalientes from './sections/PuntosCalientes';
 import ReportesGenerales from './sections/ReportesGenerales';
+import MaleterosBug from './sections/MaleterosBug';
 
 const SECTIONS = [
   ConsultorIA,
@@ -53,6 +54,7 @@ const SECTIONS = [
   Organizaciones,
   PuntosCalientes,
   ReportesGenerales,
+  MaleterosBug,
 ];
 
 export default function Page() {
@@ -88,6 +90,7 @@ export default function Page() {
     Active === GiveItemMonitor   ? { user } :
     Active === Organizaciones    ? { user } :
     Active === ReportesGenerales ? { user } :
+    Active === MaleterosBug      ? { user } :
     {};
 
   return (
