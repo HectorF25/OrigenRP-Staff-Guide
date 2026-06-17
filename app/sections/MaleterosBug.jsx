@@ -51,14 +51,30 @@ function extractPlate(log) {
 }
 
 function extractDiscordId(log) {
-  const mention = fullText(log).match(/<@!?(\d{15,21})>/);
+  const text = fullText(log);
+  const mention = text.match(/<@!?(\d{15,21})>/);
   if (mention) return mention[1];
+  // Formato típico en "Identificadores del Jugador": "Discord: discord:1429728133157748798"
+  const tag = text.match(/discord\s*:\s*(\d{15,21})/i);
+  if (tag) return tag[1];
   const named = findByName(log, /discord/i);
   if (named) {
     const m = named.match(/(\d{15,21})/);
     if (m) return m[1];
   }
   return null;
+}
+
+// Filtra solo las acciones del MALETERO (excluye GUANTERA y otros tipos de almacenamiento).
+function extractStorageType(log) {
+  const raw = findByName(log, /tipo de almacenamiento|almacenamiento/i);
+  return (raw || '').trim().toUpperCase();
+}
+
+function isMaletero(log) {
+  const type = extractStorageType(log);
+  if (type) return type.includes('MALETERO') || type.includes('TRUNK');
+  return /maletero|trunk/i.test(fullText(log));
 }
 
 function plateLength(plate) {
@@ -200,8 +216,9 @@ export default function MaleterosBug({ user }) {
   }
 
   const isSearchMode = mode === 'search';
-  const baseLogs  = isSearchMode ? searchResults : recentLogs;
-  const annotated = baseLogs.map(log => {
+  const baseLogs    = isSearchMode ? searchResults : recentLogs;
+  const maleteroLogs = baseLogs.filter(isMaletero);
+  const annotated = maleteroLogs.map(log => {
     const plate = extractPlate(log);
     return { log, plate, suspicious: isSuspiciousPlate(plate) };
   });
@@ -220,7 +237,7 @@ export default function MaleterosBug({ user }) {
             Maleteros Bug
           </div>
           <div className="pg-sub">
-            Reportes de #maleteros-bug · búsqueda por ID de Discord · placas sospechosas (más de 7 caracteres, excepto VIP)
+            Solo acciones de MALETERO (excluye guantera) · búsqueda por ID de Discord · placas sospechosas (más de 7 caracteres, excepto VIP)
           </div>
         </div>
       </div>
@@ -290,6 +307,7 @@ export default function MaleterosBug({ user }) {
       {/* Stats */}
       <div className="rob-grid" style={{ marginBottom: 14 }}>
         <StatCard label={isSearchMode ? 'Resultados' : 'Cargados'} value={baseLogs.length} color="var(--text)" />
+        <StatCard label="Acciones de maletero" value={maleteroLogs.length} color="var(--text2)" />
         <StatCard label="Matrículas bug" value={suspiciousCount} color="var(--red)" />
         {!isSearchMode && <StatCard label="Total en canal" value={recentTotalCount} color="var(--text3)" />}
       </div>
@@ -315,9 +333,11 @@ export default function MaleterosBug({ user }) {
         <div className="norm-empty">
           {isSearchMode
             ? `Sin resultados para "${searchedTerm}".`
-            : onlySuspicious && baseLogs.length > 0
-              ? 'No se detectaron matrículas bug en los reportes cargados. Desactiva el filtro para ver todos.'
-              : 'No hay reportes en este canal.'}
+            : maleteroLogs.length === 0 && baseLogs.length > 0
+              ? 'No hay acciones de MALETERO en los reportes cargados (solo guantera u otros). Actualiza para revisar los más recientes.'
+              : onlySuspicious && maleteroLogs.length > 0
+                ? 'No se detectaron matrículas bug entre las acciones de maletero cargadas. Desactiva el filtro para ver todas.'
+                : 'No hay reportes en este canal.'}
         </div>
       )}
 
