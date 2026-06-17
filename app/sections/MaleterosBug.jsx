@@ -86,7 +86,7 @@ export default function MaleterosBug({ user }) {
 
   const [mode, setMode]                     = useState('recent'); // 'recent' | 'search'
   const [query, setQuery]                   = useState('');
-  const [onlySuspicious, setOnlySuspicious] = useState(false);
+  const [onlySuspicious, setOnlySuspicious] = useState(true); // al cargar, mostrar solo matrículas bug
 
   const [recentLogs, setRecentLogs]             = useState([]);
   const [recentPage, setRecentPage]             = useState(1);
@@ -283,14 +283,14 @@ export default function MaleterosBug({ user }) {
           color: 'var(--text2)', cursor: 'pointer', flexShrink: 0, marginLeft: 'auto',
         }}>
           <input type="checkbox" checked={onlySuspicious} onChange={e => setOnlySuspicious(e.target.checked)} />
-          Solo placas sospechosas
+          Solo matrículas bug
         </label>
       </form>
 
       {/* Stats */}
       <div className="rob-grid" style={{ marginBottom: 14 }}>
         <StatCard label={isSearchMode ? 'Resultados' : 'Cargados'} value={baseLogs.length} color="var(--text)" />
-        <StatCard label="Placas sospechosas" value={suspiciousCount} color="var(--red)" />
+        <StatCard label="Matrículas bug" value={suspiciousCount} color="var(--red)" />
         {!isSearchMode && <StatCard label="Total en canal" value={recentTotalCount} color="var(--text3)" />}
       </div>
 
@@ -313,7 +313,11 @@ export default function MaleterosBug({ user }) {
       {/* Vacío */}
       {!loading && !error && visible.length === 0 && (
         <div className="norm-empty">
-          {isSearchMode ? `Sin resultados para "${searchedTerm}".` : 'No hay reportes en este canal.'}
+          {isSearchMode
+            ? `Sin resultados para "${searchedTerm}".`
+            : onlySuspicious && baseLogs.length > 0
+              ? 'No se detectaron matrículas bug en los reportes cargados. Desactiva el filtro para ver todos.'
+              : 'No hay reportes en este canal.'}
         </div>
       )}
 
