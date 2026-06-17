@@ -61,15 +61,16 @@ function extractDiscordId(log) {
   return null;
 }
 
-function plateDigitCount(plate) {
-  return (plate?.match(/\d/g) ?? []).length;
+function plateLength(plate) {
+  return plate?.length ?? 0;
 }
 
-// "placas que tienen más de 7 dígitos a excepción de las que inician por VIP"
+// Placas normales: 6-7 caracteres. Las que inician por "VIP" pueden tener 8.
+// Cualquier otra placa con más de 7 caracteres se considera sospechosa (posible bug).
 function isSuspiciousPlate(plate) {
   if (!plate) return false;
   if (plate.toUpperCase().startsWith('VIP')) return false;
-  return plateDigitCount(plate) > 7;
+  return plateLength(plate) > 7;
 }
 
 function matchesTerm(log, term) {
@@ -219,7 +220,7 @@ export default function MaleterosBug({ user }) {
             Maleteros Bug
           </div>
           <div className="pg-sub">
-            Reportes de #maleteros-bug · búsqueda por ID de Discord · placas sospechosas (más de 7 dígitos, excepto VIP)
+            Reportes de #maleteros-bug · búsqueda por ID de Discord · placas sospechosas (más de 7 caracteres, excepto VIP)
           </div>
         </div>
       </div>
@@ -327,7 +328,7 @@ export default function MaleterosBug({ user }) {
               fontSize: 11, color: 'var(--red)', fontWeight: 600,
             }}>
               <AlertTriangle size={12} />
-              Placa sospechosa: {plate} ({plateDigitCount(plate)} dígitos)
+              Placa sospechosa: {plate} ({plateLength(plate)} caracteres)
             </div>
           )}
           <div style={suspicious ? { marginTop: -1 } : undefined}>
