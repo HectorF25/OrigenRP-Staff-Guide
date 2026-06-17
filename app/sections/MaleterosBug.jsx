@@ -100,9 +100,9 @@ function matchesTerm(log, term) {
 export default function MaleterosBug({ user }) {
   const hasAccess = canAccess(user);
 
-  const [mode, setMode]                     = useState('recent'); // 'recent' | 'search'
-  const [query, setQuery]                   = useState('');
-  const [onlySuspicious, setOnlySuspicious] = useState(true); // al cargar, mostrar solo matrículas bug
+  const [mode, setMode]   = useState('recent'); // 'recent' | 'search'
+  const [query, setQuery] = useState('');
+  // Esta página SIEMPRE muestra solo matrículas bug (no hay opción de ver todas).
 
   const [recentLogs, setRecentLogs]             = useState([]);
   const [recentPage, setRecentPage]             = useState(1);
@@ -222,8 +222,8 @@ export default function MaleterosBug({ user }) {
     const plate = extractPlate(log);
     return { log, plate, suspicious: isSuspiciousPlate(plate) };
   });
-  const visible          = onlySuspicious ? annotated.filter(a => a.suspicious) : annotated;
-  const suspiciousCount  = annotated.filter(a => a.suspicious).length;
+  const visible          = annotated.filter(a => a.suspicious);
+  const suspiciousCount  = visible.length;
   const loading = isSearchMode ? searching : loadingRecent;
   const error   = isSearchMode ? searchError : recentError;
 
@@ -237,7 +237,7 @@ export default function MaleterosBug({ user }) {
             Maleteros Bug
           </div>
           <div className="pg-sub">
-            Solo acciones de MALETERO (excluye guantera) · búsqueda por ID de Discord · placas sospechosas (más de 7 caracteres, excepto VIP)
+            Solo matrículas bug de #maleteros-bug (más de 7 caracteres, excepto VIP) · solo acciones de MALETERO · búsqueda por ID de Discord
           </div>
         </div>
       </div>
@@ -294,14 +294,6 @@ export default function MaleterosBug({ user }) {
             ✕ Limpiar
           </button>
         )}
-
-        <label style={{
-          display: 'flex', alignItems: 'center', gap: 6, fontSize: 12,
-          color: 'var(--text2)', cursor: 'pointer', flexShrink: 0, marginLeft: 'auto',
-        }}>
-          <input type="checkbox" checked={onlySuspicious} onChange={e => setOnlySuspicious(e.target.checked)} />
-          Solo matrículas bug
-        </label>
       </form>
 
       {/* Stats */}
@@ -335,8 +327,8 @@ export default function MaleterosBug({ user }) {
             ? `Sin resultados para "${searchedTerm}".`
             : maleteroLogs.length === 0 && baseLogs.length > 0
               ? 'No hay acciones de MALETERO en los reportes cargados (solo guantera u otros). Actualiza para revisar los más recientes.'
-              : onlySuspicious && maleteroLogs.length > 0
-                ? 'No se detectaron matrículas bug entre las acciones de maletero cargadas. Desactiva el filtro para ver todas.'
+              : maleteroLogs.length > 0
+                ? 'No se detectaron matrículas bug entre las acciones de maletero cargadas.'
                 : 'No hay reportes en este canal.'}
         </div>
       )}
