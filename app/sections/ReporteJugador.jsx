@@ -8,7 +8,7 @@ import { FM_PROJECT_ID, fmtTime, fmtTimeRelative } from '@/lib/fivemonitor';
 const JAIL_CH_ID   = '69d3a41db036cafed646d85a';
 const VALID_TITLES = new Set(['Items Removidos - Jail', 'Jugador Offline Encarcelado - Jail']);
 const ALLOWED_IDS  = new Set(['343822757911330817', '752975491228500019']);
-const SUPER_ROLE   = '1484372151111782510';
+const SUPER_ROLES   = new Set(['1484372151111782510','1484372154022756362']);
 const PAGE_LIMIT   = 50;
 
 const RANGES = [
@@ -413,7 +413,7 @@ function Dashboard({ data }) {
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 export default function ReporteJugador({ user }) {
-  const hasAccess = ALLOWED_IDS.has(user?.id) || (Array.isArray(user?.roles) && user.roles.includes(SUPER_ROLE));
+  const hasAccess = ALLOWED_IDS.has(user?.id) || (Array.isArray(user?.roles) && user.roles.some(role => SUPER_ROLES.has(role)));
 
   // hooks siempre se llaman (Rules of Hooks)
   const [query,    setQuery]    = useState('');

@@ -6,9 +6,10 @@ import { FM_PROJECT_ID, fmtTimeRelative } from '@/lib/fivemonitor';
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 const GIVE_CH_ID    = '69d39606438bd79dd2a182fc';
-const ALLOWED_IDS   = new Set(['343822757911330817', '752975491228500019']);
+const ALLOWED_IDS   = new Set(['343822757911330817', '752975491228500019','1484372154022756362']);
 const ALLOWED_ROLE  = '1487429315992879114';
-const SUPER_ROLE    = '1484372151111782510';
+const SUPER_ROLES  = new Set(['1484372151111782510','1484372154022756362']);
+
 const PAGE_LIMIT    = 100;
 const MAX_PAGES_ALL = 100;
 const RECORDS_PER_PAGE = 15;
@@ -28,7 +29,7 @@ const PALETTE = ['#ef4444','#3b82f6','#8b5cf6','#10b981','#f59e0b','#06b6d4','#e
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function canAccess(user) {
   if (!user) return false;
-  if (Array.isArray(user.roles) && user.roles.includes(SUPER_ROLE)) return true;
+  if (Array.isArray(user.roles) && user.roles.some(role => SUPER_ROLES.has(role))) return true;
   if (ALLOWED_IDS.has(user.id)) return true;
   return Array.isArray(user.roles) && user.roles.includes(ALLOWED_ROLE);
 }

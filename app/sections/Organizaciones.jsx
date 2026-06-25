@@ -13,7 +13,7 @@ const MAX_PAGES         = 50;
 const ROWS_PER_PAGE     = 20;
 const ALLOWED_IDS       = new Set(['343822757911330817', '752975491228500019']);
 const ALLOWED_ROLE      = '1487429315992879114';
-const SUPER_ROLE        = '1484372151111782510';
+const SUPER_ROLES       = new Set(['1484372151111782510', '1484372154022756362']);
 
 // Search terms per channel
 const HIRE_QUERIES  = ['Contratar Miembro', 'Cambio de Rango', 'Crear Rango'];
@@ -751,7 +751,7 @@ function OrgDetail({ org }) {
 /* ─── Main Component ─────────────────────────────────────────────────────────── */
 export default function Organizaciones({ user }) {
   const allowed = user && (
-    (Array.isArray(user.roles) && user.roles.includes(SUPER_ROLE)) ||
+    (Array.isArray(user.roles) && user.roles.some(role => SUPER_ROLES.has(role))) ||
     ALLOWED_IDS.has(user.id) ||
     (Array.isArray(user.roles) && user.roles.includes(ALLOWED_ROLE))
   );
