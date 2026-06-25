@@ -6,6 +6,7 @@ import { SERVER_ICON } from '@/lib/constants';
 
 const SUPER_ROLE              = '1484372151111782510';
 const SUPERVISOR_ALLOWED_ROLE = '1484372153108533308';
+const SUPERVISOR_JUNIOR_ALLOWED_ROLE = '1484372154022756362';
 const SUPERVISOR_ALLOWED_IDS  = new Set(['343822757911330817', '752975491228500019', '1484372153108533308']);
 const ILEGALES_ALLOWED_IDS  = new Set(['343822757911330817', '752975491228500019', '1484372153108533308']);
 const ILEGALES_ALLOWED_ROLE = '1487429315992879114';
@@ -21,6 +22,9 @@ const ILEGALES_ADMIN_IDS    = new Set([
 ]);
 
 function hasSuper(user) {
+  if (!user) return false;
+  if (!Array.isArray(user.roles)) return false;
+  if (SUPERVISOR_JUNIOR_ALLOWED_ROLE && user.roles.includes(SUPERVISOR_JUNIOR_ALLOWED_ROLE)) return true;
   return !!user && Array.isArray(user.roles) && user.roles.includes(SUPER_ROLE);
 }
 
@@ -35,12 +39,15 @@ function canSeeGiveItemMonitor(user) {
   if (!user) return false;
   if (hasSuper(user)) return true;
   if (SUPERVISOR_ALLOWED_IDS.has(user.id)) return true;
+  if (SUPERVISOR_JUNIOR_ALLOWED_ROLE && Array.isArray(user.roles) && user.roles.includes(SUPERVISOR_JUNIOR_ALLOWED_ROLE)) return true;
   return Array.isArray(user.roles) && user.roles.includes(SUPERVISOR_ALLOWED_ROLE);
 }
 
 function canSeeReporteJugador(user) {
   if (!user) return false;
   if (hasSuper(user)) return true;
+  if (ILEGALES_ALLOWED_IDS.has(user.id)) return true;
+  if (SUPERVISOR_ALLOWED_IDS.has(user.id)) return true;
   return COORD_IDS.has(user.id);
 }
 
@@ -93,7 +100,6 @@ export default function Sidebar({ page, onPick, open, user }) {
   if (canSeeReporteJugador(user))  ilegalesItems.push({ i: 16, icon: Search,          label: 'Reporte Jugador'   });
   if (canSeeGiveItemMonitor(user)) ilegalesItems.push({ i: 18, icon: Gift,            label: 'GiveItem Monitor'  });
   if (canSeeGiveItemMonitor(user)) ilegalesItems.push({ i: 19, icon: Swords,          label: 'Organizaciones'    });
-  if (canSeeMaleterosBug(user))    ilegalesItems.push({ i: 22, icon: Car,             label: 'Maleteros Bug'     });
 
   const navGroups = ilegalesItems.length > 0
     ? [...BASE_GROUPS, { title: 'Ilegales', items: ilegalesItems }]
